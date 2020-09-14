@@ -81,7 +81,7 @@ class MMU:
         self.mem_map = mk_mmap(rom_data)
 
     @staticmethod
-    def from_rom(rom: str) -> MMU:
+    def from_rom(rom: str) -> "MMU":
         with open(rom, 'rb') as f:
             rom_data = f.read()
         return MMU(rom_data)
@@ -89,6 +89,7 @@ class MMU:
     def load(self, addr: int) -> int:
         for region in self.mem_map:
             if addr in region:
+                # print("{} load from 0x{:04X}".format(region, addr))
                 return region.load(addr)
         else:
             assert 0, "read from 0x{:04x}".format(addr)

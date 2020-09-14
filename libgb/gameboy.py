@@ -1,11 +1,11 @@
 from typing import NamedTuple
 
-from .cpu import CPU
-from .mmu import MMU
+from . import cpu
+from . import mmu
 
 class Gameboy(NamedTuple):
-    cpu: CPU
-    mmu: MMU
+    cpu: cpu.CPU
+    mmu: mmu.MMU
 
     def run(self, debug=False):
         done = False
@@ -13,3 +13,6 @@ class Gameboy(NamedTuple):
             done = self.cpu.step(self.mmu)
             if debug:
                 print(cpu)
+        print("-- REGS --")
+        print(self.cpu.regs)
+        print("done")
