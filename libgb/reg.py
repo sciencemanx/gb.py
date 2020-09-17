@@ -37,24 +37,24 @@ class Reg(NamedTuple):
 
 
 # 8 bit regs
-Reg.A = Reg("A", ["A"])
-Reg.F = Reg("F", ["F"])  # not individually addressable
-Reg.B = Reg("B", ["B"])
-Reg.C = Reg("C", ["C"])
-Reg.D = Reg("D", ["D"])
-Reg.E = Reg("E", ["E"])
-Reg.H = Reg("H", ["H"])
-Reg.L = Reg("L", ["L"])
+A = Reg("A", ["A"])
+F = Reg("F", ["F"])  # not individually addressable
+B = Reg("B", ["B"])
+C = Reg("C", ["C"])
+D = Reg("D", ["D"])
+E = Reg("E", ["E"])
+H = Reg("H", ["H"])
+L = Reg("L", ["L"])
 
 # 16 bit compound regs
-Reg.AF = Reg("AF", ["A", "F"])
-Reg.BC = Reg("BC", ["B", "C"])
-Reg.DE = Reg("DE", ["D", "E"])
-Reg.HL = Reg("HL", ["H", "L"])
+AF = Reg("AF", ["A", "F"])
+BC = Reg("BC", ["B", "C"])
+DE = Reg("DE", ["D", "E"])
+HL = Reg("HL", ["H", "L"])
 
 # 16 bit regs
-Reg.PC = Reg("PC", ["PC"])
-Reg.SP = Reg("SP", ["SP"])
+PC = Reg("PC", ["PC"])
+SP = Reg("SP", ["SP"])
 
 
 REG_FMT = "AF ${:02X}:{:02X}\n" \
@@ -77,25 +77,25 @@ class Regs:
         reg.write(self._rawregs, val)
 
     def get_flag(self, flag: Flag) -> bool:
-        return (self.load(Reg.F) & flag.value) != 0
+        return (self.load(F) & flag.value) != 0
 
     def set_flag(self, flag: Flag, on: bool):
-        old_flags = self.load(Reg.F)
+        old_flags = self.load(F)
         if on:
-            self.store(Reg.F, old_flags | flag.value)
+            self.store(F, old_flags | flag.value)
         else:
-            self.store(Reg.F, old_flags & ~flag.value)
+            self.store(F, old_flags & ~flag.value)
 
     def __str__(self):
         return REG_FMT.format(
-            self.load(Reg.A),
-            self.load(Reg.F),
-            self.load(Reg.B),
-            self.load(Reg.C),
-            self.load(Reg.D),
-            self.load(Reg.E),
-            self.load(Reg.H),
-            self.load(Reg.L),
-            self.load(Reg.PC),
-            self.load(Reg.SP),
+            self.load(A),
+            self.load(F),
+            self.load(B),
+            self.load(C),
+            self.load(D),
+            self.load(E),
+            self.load(H),
+            self.load(L),
+            self.load(PC),
+            self.load(SP),
         )

@@ -103,6 +103,11 @@ class MMU:
         else:
             assert 0, "read from 0x{:04x}".format(addr)
 
+    def load_nn(self, addr: int) -> int:
+        lo = self.load(addr)
+        hi = self.load(addr + 1)
+        return (hi << 8) + lo
+
     def store(self, addr: int, val: int):
         for region in self.mem_map:
             if addr in region:
@@ -110,3 +115,9 @@ class MMU:
                 return
         else:
             assert 0, "read from 0x{:04x}".format(addr)
+
+    def store_nn(self, addr: int, val: int):
+        lo = val & 0xff
+        hi = val >> 8
+        self.store(addr, lo)
+        self.store(addr + 1, hi)
