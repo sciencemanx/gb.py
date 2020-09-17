@@ -96,24 +96,63 @@ def pop(dst: ops.Reg):
     return f
 
 
-def call(ctx: ops.Ctx) -> Instr:
+def do_call(ctx: ops.Ctx):
     target = ops.imm16.load(ctx)
     ret = (ops.PC.load(ctx) + 3) % reg.PC.max()
-    target_str = ops.imm16.fmt(ctx)
 
     ops.SP.store(ctx, ops.SP.load(ctx) - 2)
     ops.stack.store(ctx, ret)
     ops.PC.store(ctx, target)
 
+
+def call(ctx: ops.Ctx) -> Instr:
+    target_str = ops.imm16.fmt(ctx)
+
+    do_call(ctx)
+
     return Instr(24, 0, "CALL {}".format(target_str))
 
 
-def ret(ctx: ops.Ctx) -> Instr:
+def call_cc(flag: Flag, N: bool):
+    def f(ctx: ops.Ctx) -> Instr:
+        target_str = ops.imm16.fmt(ctx)
+
+        if ctx.regs.get_flag(flag) != N:
+            do_call(ctx)
+            step = 0
+            cycles = 24
+        else:
+            step = 3
+            cycles = 12
+        cond = "{}{}".format("N" if N else "", flag.name)
+        return Instr(cycles, step, "CALL {},{}".format(cond, target_str))
+    return f
+
+
+def do_ret(ctx: ops.Ctx):
     ret_addr = ops.stack.load(ctx)
     ops.PC.store(ctx, ret_addr)
     ops.SP.store(ctx, ops.SP.load(ctx) + 2)
 
+
+def ret(ctx: ops.Ctx) -> Instr:
+    do_ret(ctx)
+
     return Instr(16, 0, "RET")
+
+
+def ret_cc(flag: Flag, N: bool):
+    def f(ctx: ops.Ctx) -> Instr:
+        if ctx.regs.get_flag(flag) != N:
+            do_ret(ctx)
+            step = 0
+            cycles = 20
+        else:
+            step = 1
+            cycles = 8
+        cond = "{}{}".format("N" if N else "", flag.name)
+        return Instr(cycles, step, "RET {}".format(cond))
+    return f
 
 
 def ld(dst: ops.Operand, src: ops.Operand):
@@ -284,6 +323,8 @@ LD_RRp_R_START = 0x02
 LD_R_RRp_START = 0x0A
 JR_CC_START = 0x20
 JP_CC_START = 0xC2
+CALL_CC_START = 0xC4
+RET_CC_START = 0xC0
 POP_START = 0xC1
 PUSH_START = 0xC5
 
@@ -311,6 +352,8 @@ for i, r in enumerate([ops.BC, ops.DE, ops.HLI, ops.HLD]):
 for i, (flag, is_n) in enumerate(product((Flag.Z, Flag.C), (True, False))):
     OP_TABLE[JR_CC_START + i * 8] = jr_cc(flag, is_n)
     OP_TABLE[JP_CC_START + i * 8] = jp_cc(flag, is_n)
+    OP_TABLE[CALL_CC_START + i * 8] = call_cc(flag, is_n)
+    OP_TABLE[RET_CC_START + i * 8] = ret_cc(flag, is_n)
 
 for i, r in enumerate([ops.BC, ops.DE, ops.HL, ops.AF]):
     OP_TABLE[POP_START + i * 0x10] = pop(r)
