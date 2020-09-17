@@ -33,7 +33,7 @@ class FixedRom(MemoryRegion):
     def load(self, addr: int) -> int:
         return self.mem[self.translate(addr)]
     def store(self, addr: int, val: int):
-        print("! write to rom at 0x{:04x}".format(addr))
+        print("! write to {} at 0x{:04x}".format(self.name, addr))
 
 class FixedWorkRam(MemoryRegion):
     name = "fixed-work-ram-bank"
@@ -42,7 +42,7 @@ class FixedWorkRam(MemoryRegion):
     def store(self, addr: int, val: int):
         self.mem[self.translate(addr)] = val
 
-class VideoRam(Unimplemented):
+class VideoRam(FixedRom):
     name = "video-ram"
 
 class ExternalRam(Unimplemented):
@@ -50,6 +50,12 @@ class ExternalRam(Unimplemented):
 
 class MirrorRam(Unimplemented):
     name = "mirror-ram"
+
+class IOPorts(FixedRom):
+    name = "io-ports"
+
+class InterruptEnableFlag(FixedRom):
+    name = "interrupt-enable-flag"
 
 ROM_BANK_1 = 0x0000 # to 0x3FFF
 ROM_BANK_2 = 0x4000 # to 0x7FFF
@@ -69,11 +75,14 @@ def mk_mmap(rom: bytes):
     return [
         FixedRom(ROM_BANK_1, ROM_BANK_2 - 1, rom[ROM_BANK_1:ROM_BANK_2]),
         FixedRom(ROM_BANK_2, VIDEO_RAM - 1, rom[ROM_BANK_2:VIDEO_RAM]),
-        # VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1),
+        VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1),
         # ExternalRam(EXTERNAL_RAM, RAM_BANK_1 - 1),
         FixedWorkRam(RAM_BANK_1, RAM_BANK_2 - 1),
         FixedWorkRam(RAM_BANK_2, RAM_MIRROR - 1),
         # Unimplemented(RAM_MIRROR, MEM_MAX),
+        IOPorts(IO_PORTS, HIGH_RAM - 1),
+        FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1),
+        InterruptEnableFlag(INT_ENABLE_REG, MEM_MAX),
     ]
 
 class MMU:
