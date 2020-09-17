@@ -20,11 +20,14 @@ class Reg(NamedTuple):
     parts: List[str]
     def size(self):
         return len(self.name) * 8  # fun hack
+    def max(self):
+        return 2 ** self.size()
     def mask(self):
-        return 2 ** self.size() - 1
+        return self.max() - 1
     def read(self, rawregs: RawRegs) -> int:
         return sum(rawregs[r] << i * 8 for i, r in enumerate(reversed(self.parts)))
     def write(self, rawregs: RawRegs, val: int):
+        val = val % self.max()
         for i, r in enumerate(reversed(self.parts)):
             rawregs[r] = (val >> i * 8) & (2 ** (len(r) * 8) - 1)
     def __str__(self):
@@ -65,6 +68,7 @@ REG_FMT = "AF ${:02X}:{:02X}\n" \
 class Regs:
     def __init__(self):
         self._rawregs: RawRegs = defaultdict(int)
+        self.IME = False
 
     def load(self, reg: Reg) -> int:
         return reg.read(self._rawregs)
