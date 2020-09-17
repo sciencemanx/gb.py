@@ -197,8 +197,9 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
             ctx.regs.set_flag(Flag.Z, new_l == 0)
 
         cycles = 4 + lhs.cost() + rhs.cost()
+        step = 1 + lhs.space() + rhs.space()
 
-        return Instr(cycles, 1, "ADD {},{}".format(dst.fmt(ctx), src.fmt(ctx)))
+        return Instr(cycles, step, "ADD {},{}".format(lhs.fmt(ctx), rhs.fmt(ctx)))
     return f
 
 
@@ -366,6 +367,7 @@ for i, rhs in enumerate(REG_DECODE_TABLE):
     OP_TABLE[0xB0 + i] = or_(ops.A, rhs)
     OP_TABLE[0xB8 + i] = cp(ops.A, rhs)
 
+OP_TABLE[0x08] = ld(ops.Mem(ops.imm16, dword=True), ops.SP)
 OP_TABLE[0xC6] = add(ops.A, ops.imm8)
 OP_TABLE[0xE6] = and_(ops.A, ops.imm8)
 OP_TABLE[0xEE] = xor(ops.A, ops.imm8)
