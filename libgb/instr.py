@@ -9,6 +9,18 @@ from . import ops, reg
 from .reg import Flag, Regs
 
 
+REG_DECODE_TABLE = [
+    ops.B,
+    ops.C,
+    ops.D,
+    ops.E,
+    ops.H,
+    ops.L,
+    ops.Mem(ops.HL),
+    ops.A,
+]
+
+
 class Instr(NamedTuple):
     cycles: int
     step: int
@@ -197,9 +209,25 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
             ctx.regs.set_flag(Flag.Z, new_l == 0)
 
         cycles = 4 + lhs.cost() + rhs.cost()
-        step = 1 + lhs.space() + rhs.space()
+        step = 1 + rhs.space()
 
         return Instr(cycles, step, "ADD {},{}".format(lhs.fmt(ctx), rhs.fmt(ctx)))
+    return f
+
+
+def sub(lhs: ops.Operand, rhs: ops.Operand):
+    def f(ctx: ops.Ctx) -> Instr:
+        val = lhs.load(ctx) - rhs.load(ctx)
+        lhs.store(ctx, val)
+
+        ctx.regs.set_flag(Flag.C, val < 0)
+        ctx.regs.set_flag(Flag.N, True)
+        # ctx.regs.set_flag(Flag.H, idk)
+        ctx.regs.set_flag(Flag.Z, val == 0)
+
+        cycles = 4 + rhs.cost()
+        step = 1 + rhs.space()
+        return Instr(cycles, step, "SUB {}".format(rhs.fmt(ctx)))
     return f
 
 
@@ -266,6 +294,153 @@ def cp(lhs: ops.Operand, rhs: ops.Operand):
     return f
 
 
+def rlc(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    MSB = (val & 0x80) >> 7
+    op.store(ctx, val << 1 | MSB)
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, MSB == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "RLC {}".format(op)
+
+
+def rrc(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    LSB = val & 1
+    op.store(ctx, val >> 1 | (LSB << 7))
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, LSB == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "RRC {}".format(op)
+
+
+def rl(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    MSB = (val & 0x80) >> 7
+    C = int(ctx.regs.get_flag(Flag.C))
+    op.store(ctx, val << 1 | C)
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, MSB == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "RL {}".format(op)
+
+
+def rr(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    LSB = val & 1
+    C = int(ctx.regs.get_flag(Flag.C))
+    op.store(ctx, val >> 1 | (C << 7))
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, LSB == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "RR {}".format(op)
+
+
+def sla(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    op.store(ctx, val << 1)
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, (val & 0x80) != 0)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "SLA {}".format(op)
+
+
+def sra(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    op.store(ctx, val >> 1 | (val & 0x80))
+    res = op.load(ctx)
+
+    ctx.regs.set_flag(Flag.C, (val & 1) == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "SRA {}".format(op)
+
+
+def swap(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    res = (val << 4 & 0xf0) | (val >> 4)
+    op.store(ctx, res)
+
+    ctx.regs.set_flag(Flag.C, False)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "SWAP {}".format(op)
+
+
+def srl(ctx: ops.Ctx, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    res = val >> 1
+    op.store(ctx, res)
+
+    ctx.regs.set_flag(Flag.C, (val & 1) == 1)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.Z, res == 0)
+
+    return "SRL {}".format(op)
+
+
+CB_ARITH = [rlc, rrc, rl, rr, sla, sra, swap, srl]
+
+def cb_prefix(ctx: ops.Ctx) -> Instr:
+    cb_op = ops.imm8.load(ctx)
+    op_idx = cb_op & 0b111
+    op = REG_DECODE_TABLE[op_idx]
+    cycles = 8 + op.cost() * 2
+    if cb_op < 0x40:
+        arith_idx = (cb_op >> 3) & 0b111
+
+        cycles = 8 + op.cost() * 2
+        mnem = CB_ARITH[arith_idx](ctx, op)
+        return Instr(cycles, 2, mnem)
+
+    return Instr(-1, 2, "CB {}".format(ops.imm8.fmt(ctx)))
+
+
+def rlca(ctx: ops.Ctx):
+    rlc(ctx, ops.A)
+    return Instr(4, 1, "RLCA")
+
+
+def rrca(ctx: ops.Ctx):
+    rrc(ctx, ops.A)
+    return Instr(4, 1, "RRCA")
+
+
+def rla(ctx: ops.Ctx):
+    rl(ctx, ops.A)
+    return Instr(4, 1, "RLA")
+
+
+def rra(ctx: ops.Ctx):
+    rr(ctx, ops.A)
+    return Instr(4, 1, "RRA")
+
+
 def di(ctx: ops.Ctx) -> Instr:
     ctx.regs.IME = False
     return Instr(4, 1, "DI")
@@ -279,6 +454,7 @@ def ei(ctx: ops.Ctx) -> Instr:
 NOP = 0x00
 JR = 0x18
 JP = 0xC3
+CB_PREFIX = 0xCB
 CALL = 0xCD
 RET = 0xC9
 HALT = 0x76
@@ -293,7 +469,13 @@ OP_TABLE = {
     RET: ret,
     DI: di,
     EI: ei,
+    CB_PREFIX: cb_prefix,
 
+    0x07: rlca,
+    0x08: ld(ops.Mem(ops.imm16, dword=True), ops.SP),
+    0x0F: rrca,
+    0x17: rla,
+    0x1F: rra,
     0xE0: ld(ops.Mem(ops.imm8, offset=0xFF00), ops.A),
     0xE2: ld(ops.Mem(ops.C), ops.A),
     0xEA: ld(ops.Mem(ops.imm16), ops.A),
@@ -301,17 +483,6 @@ OP_TABLE = {
     0xF2: ld(ops.A, ops.Mem(ops.C)),
     0xFA: ld(ops.A, ops.Mem(ops.imm16)),
 }
-
-REG_DECODE_TABLE = [
-    ops.Reg(reg.B),
-    ops.Reg(reg.C),
-    ops.Reg(reg.D),
-    ops.Reg(reg.E),
-    ops.Reg(reg.H),
-    ops.Reg(reg.L),
-    ops.Mem(ops.Reg(reg.HL)),
-    ops.Reg(reg.A),
-]
 
 INC_R_START = 0x04
 DEC_R_START = 0x05
@@ -362,13 +533,14 @@ for i, r in enumerate([ops.BC, ops.DE, ops.HL, ops.AF]):
 
 for i, rhs in enumerate(REG_DECODE_TABLE):
     OP_TABLE[0x80 + i] = add(ops.A, rhs)
+    OP_TABLE[0x90 + i] = sub(ops.A, rhs)
     OP_TABLE[0xA0 + i] = and_(ops.A, rhs)
     OP_TABLE[0xA8 + i] = xor(ops.A, rhs)
     OP_TABLE[0xB0 + i] = or_(ops.A, rhs)
     OP_TABLE[0xB8 + i] = cp(ops.A, rhs)
 
-OP_TABLE[0x08] = ld(ops.Mem(ops.imm16, dword=True), ops.SP)
 OP_TABLE[0xC6] = add(ops.A, ops.imm8)
+OP_TABLE[0xD6] = sub(ops.A, ops.imm8)
 OP_TABLE[0xE6] = and_(ops.A, ops.imm8)
 OP_TABLE[0xEE] = xor(ops.A, ops.imm8)
 OP_TABLE[0xF6] = or_(ops.A, ops.imm8)
