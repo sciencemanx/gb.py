@@ -1,4 +1,3 @@
-from __future__ import annotations
 import enum
 
 from itertools import product
@@ -50,6 +49,12 @@ def jp(ctx: ops.Ctx) -> Instr:
     return Instr(16, 0, "JP ${:04X}".format(target))
 
 
+def jp_hl(ctx: ops.Ctx) -> Instr:
+    target = ops.HL.load(ctx)
+    ops.PC.store(ctx, target)
+    return Instr(4, 0, "JP ${:04X}".format(target))
+
+
 def jp_cc(flag: Flag, N: bool):
     def f(ctx: ops.Ctx) -> Instr:
         target = ops.imm16.load(ctx)
@@ -68,6 +73,8 @@ def jp_cc(flag: Flag, N: bool):
 def jr(ctx: ops.Ctx) -> Instr:
     offset = ops.imm8.load(ctx)
     target = ops.PC.load(ctx) + from_rel(offset) + 2
+    if target == ops.PC.load(ctx):
+        return Instr(-1, 0, "INF LOOP")
     ops.PC.store(ctx, target)
     return Instr(12, 0, "JR ${:04X}".format(target))
 
@@ -101,6 +108,8 @@ def push(src: ops.Reg):
 def pop(dst: ops.Reg):
     def f(ctx: ops.Ctx) -> Instr:
         val = ops.stack.load(ctx)
+        if dst == ops.AF:
+            val &= 0xfff0
         dst.store(ctx, val)
         ops.SP.store(ctx, ops.SP.load(ctx) + 2)
 
@@ -153,8 +162,8 @@ def ret(ctx: ops.Ctx) -> Instr:
     return Instr(16, 0, "RET")
 
 
-def ret_cc(flag: Flag, N: bool):
-    def f(ctx: ops.Ctx) -> Instr:
+def mk_ret_cc(flag: Flag, N: bool):
+    def ret_cc(ctx: ops.Ctx) -> Instr:
         if ctx.regs.get_flag(flag) != N:
             do_ret(ctx)
             step = 0
@@ -164,7 +173,7 @@ def ret_cc(flag: Flag, N: bool):
             cycles = 8
         cond = "{}{}".format("N" if N else "", flag.name)
         return Instr(cycles, step, "RET {}".format(cond))
-    return f
+    return ret_cc
 
 
 def ld(dst: ops.Operand, src: ops.Operand):
@@ -215,6 +224,26 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
     return f
 
 
+def adc(lhs: ops.Operand, rhs: ops.Operand):
+    def f(ctx: ops.Ctx) -> Instr:
+        old_l = lhs.load(ctx)
+        C = int(ctx.regs.get_flag(Flag.C))
+        lhs.store(ctx, old_l + rhs.load(ctx) + C)
+        new_l = lhs.load(ctx)
+
+        ctx.regs.set_flag(Flag.C, old_l > new_l)
+        ctx.regs.set_flag(Flag.N, True)
+        # ctx.regs.set_flag(Flag.H, )
+        if not lhs.is_dword():
+            ctx.regs.set_flag(Flag.Z, new_l == 0)
+
+        cycles = 4 + lhs.cost() + rhs.cost()
+        step = 1 + rhs.space()
+
+        return Instr(cycles, step, "ADC {},{}".format(lhs.fmt(ctx), rhs.fmt(ctx)))
+    return f
+
+
 def sub(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
         val = lhs.load(ctx) - rhs.load(ctx)
@@ -228,6 +257,23 @@ def sub(lhs: ops.Operand, rhs: ops.Operand):
         cycles = 4 + rhs.cost()
         step = 1 + rhs.space()
         return Instr(cycles, step, "SUB {}".format(rhs.fmt(ctx)))
+    return f
+
+
+def sbc(lhs: ops.Operand, rhs: ops.Operand):
+    def f(ctx: ops.Ctx) -> Instr:
+        C = int(ctx.regs.get_flag(Flag.C))
+        val = lhs.load(ctx) - rhs.load(ctx) - C
+        lhs.store(ctx, val)
+
+        ctx.regs.set_flag(Flag.C, val < 0)
+        ctx.regs.set_flag(Flag.N, True)
+        # ctx.regs.set_flag(Flag.H, idk)
+        ctx.regs.set_flag(Flag.Z, val == 0)
+
+        cycles = 4 + rhs.cost()
+        step = 1 + rhs.space()
+        return Instr(cycles, step, "SBC {}".format(rhs.fmt(ctx)))
     return f
 
 
@@ -441,6 +487,55 @@ def rra(ctx: ops.Ctx):
     return Instr(4, 1, "RRA")
 
 
+def daa(ctx: ops.Ctx) -> Instr:
+    a = ops.A.load(ctx)
+    n = ctx.regs.get_flag(Flag.N)
+    c = ctx.regs.get_flag(Flag.C)
+    h = ctx.regs.get_flag(Flag.H)
+    if not n:
+        if c or a > 0x99:
+            a += 0x60
+            c = True
+        if h or (a & 0x0f) > 0x09:
+            a += 0x6
+    else:
+        if c:
+            a -= 0x60
+        if h:
+            a -= 0x6
+    ops.A.store(ctx, a)
+    ctx.regs.set_flag(Flag.C, c)
+    ctx.regs.set_flag(Flag.Z, a == 0)
+    ctx.regs.set_flag(Flag.H, False)
+
+    return Instr(4, 1, "DAA")
+
+
+def cpl(ctx: ops.Ctx) -> Instr:
+    ops.A.store(ctx, ~ops.A.load(ctx) & 0xff)
+
+    ctx.regs.set_flag(Flag.N, True)
+    ctx.regs.set_flag(Flag.H, True)
+
+    return Instr(4, 1, "CPL")
+
+
+def scf(ctx: ops.Ctx) -> Instr:
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.C, True)
+
+    return Instr(4, 1, "SCF")
+
+
+def ccf(ctx: ops.Ctx) -> Instr:
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, False)
+    ctx.regs.set_flag(Flag.C, not ctx.regs.get_flag(Flag.C))
+
+    return Instr(4, 1, "CCF")
+
+
 def di(ctx: ops.Ctx) -> Instr:
     ctx.regs.IME = False
     return Instr(4, 1, "DI")
@@ -458,36 +553,45 @@ CB_PREFIX = 0xCB
 CALL = 0xCD
 RET = 0xC9
 HALT = 0x76
+DAA = 0x27
+CPL = 0x2F
+SCF = 0x37
+CCF = 0x3F
 DI = 0xF3
 EI = 0xFB
 
-OP_TABLE = {
-    NOP: nop,
-    JR: jr,
-    JP: jp,
-    CALL: call,
-    RET: ret,
-    DI: di,
-    EI: ei,
-    CB_PREFIX: cb_prefix,
+OP_TABLE = [unimplemented] * 256
+OP_TABLE[NOP] = nop
+OP_TABLE[JR] = jr
+OP_TABLE[JP] = jp
+OP_TABLE[CALL] = call
+OP_TABLE[RET] = ret
+OP_TABLE[DAA] = daa
+OP_TABLE[CPL] = cpl
+OP_TABLE[SCF] = scf
+OP_TABLE[CCF] = ccf
+OP_TABLE[DI] = di
+OP_TABLE[EI] = ei
+OP_TABLE[CB_PREFIX] = cb_prefix
 
-    0x07: rlca,
-    0x08: ld(ops.Mem(ops.imm16, dword=True), ops.SP),
-    0x0F: rrca,
-    0x17: rla,
-    0x1F: rra,
-    0xE0: ld(ops.Mem(ops.imm8, offset=0xFF00), ops.A),
-    0xE2: ld(ops.Mem(ops.C), ops.A),
-    0xEA: ld(ops.Mem(ops.imm16), ops.A),
-    0xF0: ld(ops.A, ops.Mem(ops.imm8, offset=0xFF00)),
-    0xF2: ld(ops.A, ops.Mem(ops.C)),
-    0xFA: ld(ops.A, ops.Mem(ops.imm16)),
-}
+OP_TABLE[0x07] = rlca
+OP_TABLE[0x08] = ld(ops.Mem(ops.imm16, dword=True), ops.SP)
+OP_TABLE[0x0F] = rrca
+OP_TABLE[0x17] = rla
+OP_TABLE[0x1F] = rra
+OP_TABLE[0xE0] = ld(ops.Mem(ops.imm8, offset=0xFF00), ops.A)
+OP_TABLE[0xE2] = ld(ops.Mem(ops.C), ops.A)
+OP_TABLE[0xE9] = jp_hl
+OP_TABLE[0xEA] = ld(ops.Mem(ops.imm16), ops.A)
+OP_TABLE[0xF0] = ld(ops.A, ops.Mem(ops.imm8, offset=0xFF00))
+OP_TABLE[0xF2] = ld(ops.A, ops.Mem(ops.C))
+OP_TABLE[0xFA] = ld(ops.A, ops.Mem(ops.imm16))
 
 INC_R_START = 0x04
 DEC_R_START = 0x05
 INC_RR_START = 0x03
 DEC_RR_START = 0x0B
+ADD_RR_RR_START = 0x09
 LD_R_IMM_START = 0x6
 LD_R_R_START = 0x40
 LD_RR_IMM_START = 0x01
@@ -515,6 +619,7 @@ for i, r in enumerate([ops.BC, ops.DE, ops.HL, ops.SP]):
     OP_TABLE[LD_RR_IMM_START + i * 0x10] = ld(r, ops.imm16)
     OP_TABLE[INC_RR_START + i * 0x10] = incdec(r, inc=True)
     OP_TABLE[DEC_RR_START + i * 0x10] = incdec(r, inc=False)
+    OP_TABLE[ADD_RR_RR_START + i * 0x10] = add(ops.HL, r)
 
 for i, r in enumerate([ops.BC, ops.DE, ops.HLI, ops.HLD]):
     mem = ops.Mem(r)
@@ -525,7 +630,7 @@ for i, (flag, is_n) in enumerate(product((Flag.Z, Flag.C), (True, False))):
     OP_TABLE[JR_CC_START + i * 8] = jr_cc(flag, is_n)
     OP_TABLE[JP_CC_START + i * 8] = jp_cc(flag, is_n)
     OP_TABLE[CALL_CC_START + i * 8] = call_cc(flag, is_n)
-    OP_TABLE[RET_CC_START + i * 8] = ret_cc(flag, is_n)
+    OP_TABLE[RET_CC_START + i * 8] = mk_ret_cc(flag, is_n)
 
 for i, r in enumerate([ops.BC, ops.DE, ops.HL, ops.AF]):
     OP_TABLE[POP_START + i * 0x10] = pop(r)
@@ -533,14 +638,18 @@ for i, r in enumerate([ops.BC, ops.DE, ops.HL, ops.AF]):
 
 for i, rhs in enumerate(REG_DECODE_TABLE):
     OP_TABLE[0x80 + i] = add(ops.A, rhs)
+    OP_TABLE[0x88 + i] = adc(ops.A, rhs)
     OP_TABLE[0x90 + i] = sub(ops.A, rhs)
+    OP_TABLE[0x98 + i] = sbc(ops.A, rhs)
     OP_TABLE[0xA0 + i] = and_(ops.A, rhs)
     OP_TABLE[0xA8 + i] = xor(ops.A, rhs)
     OP_TABLE[0xB0 + i] = or_(ops.A, rhs)
     OP_TABLE[0xB8 + i] = cp(ops.A, rhs)
 
 OP_TABLE[0xC6] = add(ops.A, ops.imm8)
+OP_TABLE[0xCE] = adc(ops.A, ops.imm8)
 OP_TABLE[0xD6] = sub(ops.A, ops.imm8)
+OP_TABLE[0xDE] = sbc(ops.A, ops.imm8)
 OP_TABLE[0xE6] = and_(ops.A, ops.imm8)
 OP_TABLE[0xEE] = xor(ops.A, ops.imm8)
 OP_TABLE[0xF6] = or_(ops.A, ops.imm8)
@@ -553,7 +662,7 @@ def diag():
     for i in range(0x10):
         for j in range(0x10):
             idx = i * 0x10 + j
-            if idx in OP_TABLE:
+            if OP_TABLE[idx] is not unimplemented:
                 mark = "X"
             elif idx in UNUSED:
                 mark = "-"
@@ -566,6 +675,6 @@ def diag():
 
 
 def exec_instr(op: int, regs: Regs, mmu: MMU) -> Instr:
-    handler = OP_TABLE.get(op, unimplemented)
+    handler = OP_TABLE[op]
     ctx = ops.Ctx(regs, mmu)
     return handler(ctx)
