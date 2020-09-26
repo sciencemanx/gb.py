@@ -6,6 +6,7 @@ from .reg import Regs
 class CPU:
     def __init__(self, max_execs=None):
         self.execs = 0
+        self.cycles = 0
         self.max_execs = max_execs
         self.execed = []
 
@@ -21,14 +22,16 @@ class CPU:
         pc = self.regs.load(reg.PC)
         op = mmu.load(pc)
         inst = instr.exec_instr(op, self.regs, mmu)
-        print("{:04X}:{:02X} {}".format(pc, op, inst.mnem))
-        i = inst.mnem.split()[0]
-        if i not in self.execed:
-            self.execed.append(i)
+        # print("{:04X}:{:02X} {}".format(pc, op, inst.mnem))
         self.regs.store(reg.PC, self.regs.load(reg.PC) + inst.step)
 
-        self.execs += 1
-        if self.max_execs and self.execs > self.max_execs:
-            return True
+        self.cycles += inst.cycles
 
-        return inst.cycles == -1
+        self.execs += 1
+        done = self.max_execs and self.execs > self.max_execs
+        done |= inst.cycles == -1
+
+        if done:
+            print(inst.mnem)
+
+        return done
