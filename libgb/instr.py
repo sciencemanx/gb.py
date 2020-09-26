@@ -52,7 +52,7 @@ def jp(ctx: ops.Ctx) -> Instr:
 def jp_hl(ctx: ops.Ctx) -> Instr:
     target = ops.HL.load(ctx)
     ops.PC.store(ctx, target)
-    return Instr(4, 0, "JP ${:04X}".format(target))
+    return Instr(4, 0, "JP (HL)")
 
 
 def jp_cc(flag: Flag, N: bool):
@@ -546,6 +546,18 @@ def ei(ctx: ops.Ctx) -> Instr:
     return Instr(4, 1, "EI")
 
 
+def mk_rst(n: int):
+    def rst(ctx: ops.Ctx) -> Instr:
+        ret = (ops.PC.load(ctx) + 3) % reg.PC.max()
+
+        ops.SP.store(ctx, ops.SP.load(ctx) - 2)
+        ops.stack.store(ctx, ret)
+
+        ops.PC.store(ctx, n)
+        return Instr(16, 0, "RST ${:02X}".format(n))
+    return rst
+
+
 NOP = 0x00
 JR = 0x18
 JP = 0xC3
@@ -603,6 +615,7 @@ CALL_CC_START = 0xC4
 RET_CC_START = 0xC0
 POP_START = 0xC1
 PUSH_START = 0xC5
+RST_START = 0xC7
 
 for i, dst in enumerate(REG_DECODE_TABLE):
     OP_TABLE[INC_R_START + i * 8] = incdec(dst, inc=True)
@@ -654,6 +667,9 @@ OP_TABLE[0xE6] = and_(ops.A, ops.imm8)
 OP_TABLE[0xEE] = xor(ops.A, ops.imm8)
 OP_TABLE[0xF6] = or_(ops.A, ops.imm8)
 OP_TABLE[0xFE] = cp(ops.A, ops.imm8)
+
+for i in range(8):
+    OP_TABLE[RST_START + i * 8] = mk_rst(i * 8)
 
 
 UNUSED = [0xd3, 0xdb, 0xdd, 0xe3, 0xe4, 0xeb, 0xec, 0xed, 0xf4, 0xfc, 0xfd]
