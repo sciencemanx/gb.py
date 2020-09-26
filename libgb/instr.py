@@ -450,7 +450,19 @@ def srl(ctx: ops.Ctx, op: ops.Operand) -> str:
     return "SRL {}".format(op)
 
 
+def bit(ctx: ops.Ctx, n: int, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    mask = 1 << n
+
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.H, True)
+    ctx.regs.set_flag(Flag.Z, (val & mask) == 0)
+
+    return "BIT {},{}".format(n, op)
+
+
 CB_ARITH = [rlc, rrc, rl, rr, sla, sra, swap, srl]
+
 
 def cb_prefix(ctx: ops.Ctx) -> Instr:
     cb_op = ops.imm8.load(ctx)
@@ -459,9 +471,11 @@ def cb_prefix(ctx: ops.Ctx) -> Instr:
     cycles = 8 + op.cost() * 2
     if cb_op < 0x40:
         arith_idx = (cb_op >> 3) & 0b111
-
-        cycles = 8 + op.cost() * 2
         mnem = CB_ARITH[arith_idx](ctx, op)
+        return Instr(cycles, 2, mnem)
+    elif cb_op < 0x80:
+        n = (cb_op >> 3) & 0b111
+        mnem = bit(ctx, n, op)
         return Instr(cycles, 2, mnem)
 
     return Instr(-1, 2, "CB {}".format(ops.imm8.fmt(ctx)))
@@ -547,6 +561,7 @@ def ei(ctx: ops.Ctx) -> Instr:
 
 
 def mk_rst(n: int):
+    mnem = "RST ${:02X}".format(n)
     def rst(ctx: ops.Ctx) -> Instr:
         ret = (ops.PC.load(ctx) + 3) % reg.PC.max()
 
@@ -554,7 +569,7 @@ def mk_rst(n: int):
         ops.stack.store(ctx, ret)
 
         ops.PC.store(ctx, n)
-        return Instr(16, 0, "RST ${:02X}".format(n))
+        return Instr(16, 0, mnem)
     return rst
 
 
@@ -592,11 +607,11 @@ OP_TABLE[0x0F] = rrca
 OP_TABLE[0x17] = rla
 OP_TABLE[0x1F] = rra
 OP_TABLE[0xE0] = ld(ops.Mem(ops.imm8, offset=0xFF00), ops.A)
-OP_TABLE[0xE2] = ld(ops.Mem(ops.C), ops.A)
+OP_TABLE[0xE2] = ld(ops.Mem(ops.C, offset=0xFF00), ops.A)
 OP_TABLE[0xE9] = jp_hl
 OP_TABLE[0xEA] = ld(ops.Mem(ops.imm16), ops.A)
 OP_TABLE[0xF0] = ld(ops.A, ops.Mem(ops.imm8, offset=0xFF00))
-OP_TABLE[0xF2] = ld(ops.A, ops.Mem(ops.C))
+OP_TABLE[0xF2] = ld(ops.A, ops.Mem(ops.C, offset=0xFF00))
 OP_TABLE[0xFA] = ld(ops.A, ops.Mem(ops.imm16))
 
 INC_R_START = 0x04
