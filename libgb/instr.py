@@ -573,6 +573,14 @@ def mk_rst(n: int):
     return rst
 
 
+def interrupt(regs: Regs, mmu: MMU, target: int):
+    ctx = ops.Ctx(regs, mmu)
+
+    regs.IME = False
+    push(ops.PC)(ctx)
+    ops.PC.store(ctx, target)
+
+
 NOP = 0x00
 JR = 0x18
 JP = 0xC3
