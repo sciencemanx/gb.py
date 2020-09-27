@@ -570,7 +570,7 @@ def ei(ctx: ops.Ctx) -> Instr:
 def mk_rst(n: int):
     mnem = "RST ${:02X}".format(n)
     def rst(ctx: ops.Ctx) -> Instr:
-        ret = (ops.PC.load(ctx) + 3) % reg.PC.max()
+        ret = (ops.PC.load(ctx) + 1) % reg.PC.max()
 
         ops.SP.store(ctx, ops.SP.load(ctx) - 2)
         ops.stack.store(ctx, ret)
