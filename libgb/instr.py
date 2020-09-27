@@ -468,6 +468,22 @@ def bit(ctx: ops.Ctx, n: int, op: ops.Operand) -> str:
     return "BIT {},{}".format(n, op)
 
 
+def res(ctx: ops.Ctx, n: int, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    mask = ~(1 << n)
+    op.store(ctx, val & mask)
+
+    return "RES {},{}".format(n, op)
+
+
+def set_(ctx: ops.Ctx, n: int, op: ops.Operand) -> str:
+    val = op.load(ctx)
+    mask = 1 << n
+    op.store(ctx, val | mask)
+
+    return "SET {},{}".format(n, op)
+
+
 CB_ARITH = [rlc, rrc, rl, rr, sla, sra, swap, srl]
 
 
@@ -476,13 +492,18 @@ def cb_prefix(ctx: ops.Ctx) -> Instr:
     op_idx = cb_op & 0b111
     op = REG_DECODE_TABLE[op_idx]
     cycles = 8 + op.cost() * 2
+    n = (cb_op >> 3) & 0b111
     if cb_op < 0x40:
-        arith_idx = (cb_op >> 3) & 0b111
-        mnem = CB_ARITH[arith_idx](ctx, op)
+        mnem = CB_ARITH[n](ctx, op)
         return Instr(cycles, 2, mnem)
     elif cb_op < 0x80:
-        n = (cb_op >> 3) & 0b111
         mnem = bit(ctx, n, op)
+        return Instr(cycles, 2, mnem)
+    elif cb_op < 0xC0:
+        mnem = res(ctx, n, op)
+        return Instr(cycles, 2, mnem)
+    elif cb_op <= 0xFF:
+        mnem = set_(ctx, n, op)
         return Instr(cycles, 2, mnem)
 
     return Instr(-1, 2, "CB {}".format(ops.imm8.fmt(ctx)))
