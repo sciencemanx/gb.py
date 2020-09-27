@@ -176,6 +176,13 @@ def mk_ret_cc(flag: Flag, N: bool):
     return ret_cc
 
 
+def reti(ctx: ops.Ctx):
+    do_ret(ctx)
+    ctx.regs.IME = True
+
+    return Instr(16, 0, "RET")
+
+
 def ld(dst: ops.Operand, src: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
         dst.store(ctx, src.load(ctx))
@@ -587,6 +594,7 @@ JP = 0xC3
 CB_PREFIX = 0xCB
 CALL = 0xCD
 RET = 0xC9
+RETI = 0xD9
 HALT = 0x76
 DAA = 0x27
 CPL = 0x2F
@@ -601,6 +609,7 @@ OP_TABLE[JR] = jr
 OP_TABLE[JP] = jp
 OP_TABLE[CALL] = call
 OP_TABLE[RET] = ret
+OP_TABLE[RETI] = reti
 OP_TABLE[DAA] = daa
 OP_TABLE[CPL] = cpl
 OP_TABLE[SCF] = scf
