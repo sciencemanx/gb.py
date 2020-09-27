@@ -4,19 +4,18 @@ import argparse
 import cProfile
 import sys
 
-from libgb.cpu import CPU
 from libgb.gameboy import Gameboy
-from libgb.mmu import MMU
+from libgb.rom import Rom
 from libgb.instr import diag
 
 
-def main(rom: str, max_execs: int, headless: bool):
+def main(rom_path: str, max_execs: int, headless: bool):
     if not headless:
         print("warning! display not supported")
 
-    cpu = CPU(max_execs)
-    mmu = MMU.from_rom(rom)
-    gb = Gameboy(cpu, mmu)
+    rom = Rom.from_file(rom_path)
+    gb = Gameboy.from_rom(rom)
+    gb.cpu.max_execs = max_execs
 
     gb.run()
 

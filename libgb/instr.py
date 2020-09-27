@@ -43,6 +43,11 @@ def nop(ctx: ops.Ctx) -> Instr:
     return Instr(4, 1, "NOP")
 
 
+def halt(ctx: ops.Ctx) -> Instr:
+    ctx.regs.halted = True
+    return Instr(4, 1, "HALT")
+
+
 def jp(ctx: ops.Ctx) -> Instr:
     target = ops.imm16.load(ctx)
     ops.PC.store(ctx, target)
@@ -631,6 +636,7 @@ OP_TABLE[JP] = jp
 OP_TABLE[CALL] = call
 OP_TABLE[RET] = ret
 OP_TABLE[RETI] = reti
+OP_TABLE[HALT] = halt
 OP_TABLE[DAA] = daa
 OP_TABLE[CPL] = cpl
 OP_TABLE[SCF] = scf

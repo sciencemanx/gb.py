@@ -2,21 +2,55 @@ import time
 from typing import NamedTuple
 
 from . import cpu
+from . import gpu
+from . import joypad
+# from . import lcd
 from . import mmu
+from . import rom
+from . import timer
 
 class Gameboy(NamedTuple):
     cpu: cpu.CPU
+    gpu: gpu.GPU
     mmu: mmu.MMU
+    timer: timer.Timer
 
     def run(self):
         done = False
         start = time.time()
+        ticks = 0
         while not done:
-            done = self.cpu.step(self.mmu)
+            if ticks >= self.cpu.cycles:
+                done = self.cpu.step(self.mmu)
+            self.gpu.step(self.cpu, self.mmu)
+            self.timer.step(self.cpu)
+            ticks += 1
         end = time.time()
+        self.gpu.dump(self.mmu)
         print("-- REGS --")
         print(self.cpu.regs)
         print("num execs: {}".format(self.cpu.execs))
-        print("cycles: {}".format(self.cpu.cycles))
-        print("cpu secs: {}".format(self.cpu.cycles / 4190000))
+        print("ticks: {}".format(ticks))
+        print("cpu secs: {}".format(ticks / cpu.CPU_CLOCK))
         print("wall secs: {}".format(end - start))
+
+    @staticmethod
+    def from_rom(rom: rom.Rom):
+        c = cpu.CPU()
+        # l = lcd.LCD()
+        g = gpu.GPU()
+        m = mmu.MMU.from_rom(rom)
+        t = timer.Timer()
+
+        display_io_handler = gpu.DisplayIOHandler(g, m)
+        interrupt_io_handler = cpu.InterruptIOHandler(c)
+        joypad_io_handler = joypad.JoypadIOHandler()
+        timer_io_handler = timer.TimerIOHandler(t)
+        m.io_ports.register_handler(display_io_handler)
+        m.io_ports.register_handler(interrupt_io_handler)
+        m.io_ports.register_handler(joypad_io_handler)
+        # m.io_ports.register_handler(serial_io_handler)
+        # m.io_ports.register_handler(sound_io_handler)
+        m.io_ports.register_handler(timer_io_handler)
+
+        return Gameboy(c, g, m, t)

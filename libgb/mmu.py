@@ -1,5 +1,7 @@
-from .memory import FixedRom, VideoRam, FixedWorkRam, IOPorts, InterruptEnableFlag
-# from .lcd import VideoRam
+from typing import NamedTuple
+from .memory import ExternalRam, FixedRom, VideoRam, FixedWorkRam, SpriteAttributeTable, Unusable
+from .io import IOPorts
+from .rom import Rom
 
 ROM_BANK_1 = 0x0000 # to 0x3FFF
 ROM_BANK_2 = 0x4000 # to 0x7FFF
@@ -15,34 +17,50 @@ HIGH_RAM = 0xFF80 # to 0xFFFE
 INT_ENABLE_REG = 0xFFFF # to 0xFFFF
 MEM_MAX = 0xFFFF
 
-def mk_mmap(rom: bytes):
-    return [
-        FixedRom(ROM_BANK_1, ROM_BANK_2 - 1, rom[ROM_BANK_1:ROM_BANK_2]),
-        FixedRom(ROM_BANK_2, VIDEO_RAM - 1, rom[ROM_BANK_2:VIDEO_RAM]),
-        VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1),
-        # ExternalRam(EXTERNAL_RAM, RAM_BANK_1 - 1),
-        FixedWorkRam(RAM_BANK_1, RAM_BANK_2 - 1),
-        FixedWorkRam(RAM_BANK_2, RAM_MIRROR - 1),
-        # Unimplemented(RAM_MIRROR, MEM_MAX),
-        IOPorts(IO_PORTS, HIGH_RAM - 1),
-        FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1),
-        InterruptEnableFlag(INT_ENABLE_REG, MEM_MAX),
-    ]
 
-class MMU:
-    def __init__(self, rom_data: bytes):
-        self.mem_map = mk_mmap(rom_data)
+def get_rom_regions(rom: Rom):
+    rom_1 = FixedRom(ROM_BANK_1, ROM_BANK_2 - 1, rom.data[ROM_BANK_1:ROM_BANK_2])
+    rom_2 = FixedRom(ROM_BANK_2, VIDEO_RAM - 1, rom.data[ROM_BANK_2:VIDEO_RAM])
+    return rom_1, rom_2
+
+
+def get_ram_regions(rom: Rom):
+    video_ram = VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1)
+    ext_ram = ExternalRam(EXTERNAL_RAM, RAM_BANK_1 - 1)
+    ram_1 = FixedWorkRam(RAM_BANK_1, RAM_BANK_2 - 1)
+    ram_2 = FixedWorkRam(RAM_BANK_2, RAM_MIRROR - 1)
+    return video_ram, ext_ram, ram_1, ram_2
+
+
+class MMU(NamedTuple):
+    rom_1: FixedRom
+    rom_2: FixedRom
+    video_ram: VideoRam
+    ext_ram: ExternalRam
+    ram_1: FixedWorkRam
+    ram_2: FixedWorkRam
+    # echo:
+    oam: SpriteAttributeTable
+    unusable: Unusable
+    io_ports: IOPorts
+    hi_ram: FixedWorkRam
 
     @staticmethod
-    def from_rom(rom: str) -> "MMU":
-        with open(rom, 'rb') as f:
-            rom_data = f.read()
-        return MMU(rom_data)
+    def from_rom(rom: Rom):
+        rom_1, rom_2 = get_rom_regions(rom)
+        video_ram, ext_ram, ram_1, ram_2 = get_ram_regions(rom)
+        oam = SpriteAttributeTable(SPRITE_TABLE, UNUSABLE - 1)
+        unusable = Unusable(UNUSABLE, IO_PORTS - 1)
+        io = IOPorts(IO_PORTS, HIGH_RAM - 1)
+        hi_ram = FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1)
+        return MMU(rom_1, rom_2, video_ram, ext_ram, ram_1, ram_2, oam, unusable, io, hi_ram)
+
+    def mem_map(self):
+        return list(self)
 
     def load(self, addr: int) -> int:
-        for region in self.mem_map:
+        for region in self.mem_map():
             if addr in region:
-                # print("{} load from 0x{:04X}".format(region, addr))
                 return region.load(addr)
         else:
             assert 0, "read from 0x{:04x}".format(addr)
@@ -53,9 +71,9 @@ class MMU:
         return (hi << 8) + lo
 
     def store(self, addr: int, val: int):
-        for region in self.mem_map:
+        for region in self.mem_map():
             if addr in region:
-                region.store(addr, val)
+                region.store(addr, val & 0xff)
                 return
         else:
             print("!!! write to 0x{:04x}".format(addr))

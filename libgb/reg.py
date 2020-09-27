@@ -78,6 +78,7 @@ class Regs:
     def __init__(self):
         self._rawregs: RawRegs = defaultdict(int)
         self.IME = False
+        self.halted = False
 
     def load(self, reg: Reg) -> int:
         return reg.read(self._rawregs)
