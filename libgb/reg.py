@@ -25,11 +25,20 @@ class Reg(NamedTuple):
     def mask(self):
         return self.max() - 1
     def read(self, rawregs: RawRegs) -> int:
-        return sum(rawregs[r] << i * 8 for i, r in enumerate(reversed(self.parts)))
+        if len(self.parts) == 1:
+            return rawregs[self.name]
+        else:
+            hi_reg, lo_reg = self.parts
+            hi, lo = rawregs[hi_reg], rawregs[lo_reg]
+            return (hi << 8) + lo
+            # return sum(rawregs[r] << i * 8 for i, r in enumerate(reversed(self.parts)))
     def write(self, rawregs: RawRegs, val: int):
         val = val % self.max()
-        for i, r in enumerate(reversed(self.parts)):
-            rawregs[r] = (val >> i * 8) & (2 ** (len(r) * 8) - 1)
+        if len(self.parts) == 1:
+            rawregs[self.name] = val
+        else:
+            for i, r in enumerate(reversed(self.parts)):
+                rawregs[r] = (val >> i * 8) & (2 ** (len(r) * 8) - 1)
     def __str__(self):
         return self.name
     def __repr__(self):
