@@ -3,26 +3,32 @@ from enum import IntFlag
 from . import instr, reg
 from .mmu import MMU
 from .reg import Regs
-from .io import DisplayIO, InterruptIO, IOHandler
+from .io import InterruptIO, IOHandler
 
 
 CPU_CLOCK = 4194304
 
 
+VBLANK_INT = 1 << 0
+LCD_STAT_INT = 1 << 1
+TIMER_INT = 1 << 2
+SERIAL_INT = 1 << 3
+JOYPAD_INT = 1 << 4
+
 class Interrupt(IntFlag):
-    VBLANK = 1 << 0
-    LCD_STAT = 1 << 1
-    TIMER = 1 << 2
-    SERIAL = 1 << 3
-    JOYPAD = 1 << 4
+    VBLANK = VBLANK_INT
+    LCD_STAT = LCD_STAT_INT
+    TIMER = TIMER_INT
+    SERIAL = SERIAL_INT
+    JOYPAD = JOYPAD_INT
 
 
 INTERRUPT_VECTOR = [
-    (Interrupt.VBLANK, 0x40),
-    (Interrupt.LCD_STAT, 0x48),
-    (Interrupt.TIMER, 0x50),
-    (Interrupt.SERIAL, 0x58),
-    (Interrupt.JOYPAD, 0x60),
+    (VBLANK_INT, 0x40),
+    (LCD_STAT_INT, 0x48),
+    (TIMER_INT, 0x50),
+    (SERIAL_INT, 0x58),
+    (JOYPAD_INT, 0x60),
 ]
 
 
@@ -51,16 +57,15 @@ class CPU:
 
 
     def request_interrupt(self, i: Interrupt):
-        self.if_vector |= i
+        self.if_vector |= i.value
 
 
     def service_interrupts(self, mmu: MMU):
         if self.ie_vector & self.if_vector == 0:
             return
-        triggered_interrupts = Interrupt(self.ie_vector & self.if_vector)
+        triggered_interrupts = self.ie_vector & self.if_vector
         for interrupt, target in INTERRUPT_VECTOR:
-            if interrupt in triggered_interrupts:
-                # print("servicing {}!".format(repr(interrupt)))
+            if interrupt & triggered_interrupts != 0:
                 self.if_vector &= ~interrupt
                 instr.interrupt(self.regs, mmu, target)
                 self.regs.halted = False
