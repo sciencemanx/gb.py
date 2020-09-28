@@ -1,3 +1,4 @@
+from typing import List
 
 import pygame
 
@@ -19,9 +20,21 @@ class LCD:
                 if event.type == pygame.QUIT:
                     return
 
-    def draw_pixel(self, x: int, y: int, color: int):
-        assert 0 <= color < 4
-        true_color = color * 85
-        pixel = (true_color, true_color, true_color)
-        self.pixels[x, y] = pixel
-        # self.screen.blit(self.screen, (0, 0))
+    def draw_display(self, display: List[List[int]]):
+        assert len(display) == 160
+        assert len(display[0]) == 144
+
+        bs = bytearray(160 * 144 * 4)
+        k = 0
+        for j in range(144):
+            for i in range(160):
+                p = (3 - display[i][j]) * 85
+                bs[k] = 0xff
+                bs[k+1] = p
+                bs[k+2] = p
+                bs[k+3] = p
+                k += 4
+
+        self.screen.get_buffer().write(bs)
+        pygame.display.flip()
+        pygame.event.get()
