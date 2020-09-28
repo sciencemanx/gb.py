@@ -1,9 +1,11 @@
 from enum import IntFlag
-from typing import Dict
+from typing import Dict, List
+
+from pygame.image import load
 
 from .cpu import CPU, Interrupt
 from .io import IOHandler, DisplayIO
-# from .lcd import LCD
+from .lcd import LCD
 from .mmu import MMU
 
 BLOCK_0 = 0x8000, 0x87FF
@@ -37,8 +39,20 @@ def get_mem(region, lohi):
     return region.mem[lo:hi+1]
 
 
-# if LY >= 144 VBLANK
-# if LY > 153 wrap to 0
+
+def load_tile(tile_bs: bytes):
+    assert len(tile_bs) == 16
+    tile = [[0] * 8 for _ in range(8)]
+    for i in range(8):
+        lo = tile_bs[2 * i]
+        hi = tile_bs[2 * i + 1]
+        for j in range(8):
+            lo_color = int(lo & (1 << j) != 0)
+            hi_color = int(hi & (1 << j) != 0)
+            color = lo_color + (hi_color << 1)
+            tile[i][7 - j] = color
+    return tile
+
 
 LY_CLKS = 456
 VBLANK_START = 144
@@ -62,14 +76,38 @@ class GPU:
             DisplayIO.WX: 0,
         }
         self.next_ly = LY_CLKS
+        self.lcd = LCD()
 
-    def draw_display(self):
+    def get_bgp_map(self):
+        bgp = self.regs[DisplayIO.BGP]
+        return [bgp & 3, (bgp >> 2) & 3, (bgp >> 4) & 3, (bgp >> 6) & 3]
+
+    def render_bg(self, mmu, display):
+        bg_tile_map = get_mem(mmu.video_ram, BGMAP_1)
+        bg_tile_data = get_mem(mmu.video_ram, (0x8800, 0x97FF))
+        bg_tiles = [load_tile(bg_tile_data[i * 16: (i + 1) * 16]) for i in range(len(bg_tile_data) // 16)]
+        palette = self.get_bgp_map()
+
+        bg = [[0] * 256 for _ in range(256)]
+        for i, tile_idx in enumerate(bg_tile_map):
+            tile = bg_tiles[(tile_idx + 128) % 256]
+            x, y = i % 32, i // 32
+            for j in range(8):
+                for k in range(8):
+                    bg[(x * 8) + j][(y * 8) + k] = palette[tile[k][j]]
+
+        for i in range(160):
+            for j in range(144):
+                display[i][j] = bg[i][j]
+
+    def draw_display(self, mmu: MMU):
         lcdc = LCDC(self.regs[DisplayIO.LCDC])
-        # print(lcdc)
-        # if LCDC.BG_DISPLAY in lcdc:
-            # print("showing background")
+        display = [[0] * 144 for _ in range(160)]
 
-        # print(LCDC(self.regs[DisplayIO.LCDC]))
+        if LCDC.BG_DISPLAY in lcdc:
+            self.render_bg(mmu, display)
+
+        self.lcd.draw_display(display)
 
     def step(self, cpu: CPU, mmu: MMU):
         self.next_ly -= 1
@@ -82,7 +120,7 @@ class GPU:
                 cpu.request_interrupt(Interrupt.LCD_STAT)
             if self.regs[DisplayIO.LY] == VBLANK_START:
                 cpu.request_interrupt(Interrupt.VBLANK)
-                self.draw_display()
+                self.draw_display(mmu)
 
             self.next_ly = LY_CLKS
 
@@ -92,12 +130,6 @@ class GPU:
         block_2 = get_mem(mmu.video_ram, BLOCK_2)
         bgmap_1 = get_mem(mmu.video_ram, BGMAP_1)
         bgmap_2 = get_mem(mmu.video_ram, BGMAP_2)
-
-        print(block_1)
-        # print(block_2)
-        print(self.regs)
-        print(bgmap_1)
-        # print(bgmap_2)
 
 
 class DisplayIOHandler(IOHandler):
