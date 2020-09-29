@@ -7,6 +7,7 @@ from . import joypad
 # from . import lcd
 from . import mmu
 from . import rom
+from . import serial
 from . import timer
 
 class Gameboy(NamedTuple):
@@ -33,6 +34,7 @@ class Gameboy(NamedTuple):
         print("ticks: {}".format(ticks))
         print("cpu secs: {}".format(ticks / cpu.CPU_CLOCK))
         print("wall secs: {}".format(end - start))
+        self.gpu.lcd.wait()
 
     @staticmethod
     def from_rom(rom: rom.Rom):
@@ -45,11 +47,12 @@ class Gameboy(NamedTuple):
         display_io_handler = gpu.DisplayIOHandler(g, m)
         interrupt_io_handler = cpu.InterruptIOHandler(c)
         joypad_io_handler = joypad.JoypadIOHandler()
+        serial_io_handler = serial.SerialIOHandler()
         timer_io_handler = timer.TimerIOHandler(t)
         m.io_ports.register_handler(display_io_handler)
         m.io_ports.register_handler(interrupt_io_handler)
         m.io_ports.register_handler(joypad_io_handler)
-        # m.io_ports.register_handler(serial_io_handler)
+        m.io_ports.register_handler(serial_io_handler)
         # m.io_ports.register_handler(sound_io_handler)
         m.io_ports.register_handler(timer_io_handler)
 
