@@ -516,21 +516,25 @@ def cb_prefix(ctx: ops.Ctx) -> Instr:
 
 def rlca(ctx: ops.Ctx):
     rlc(ctx, ops.A)
+    ctx.regs.set_flag(Flag.Z, False)
     return Instr(4, 1, "RLCA")
 
 
 def rrca(ctx: ops.Ctx):
     rrc(ctx, ops.A)
+    ctx.regs.set_flag(Flag.Z, False)
     return Instr(4, 1, "RRCA")
 
 
 def rla(ctx: ops.Ctx):
     rl(ctx, ops.A)
+    ctx.regs.set_flag(Flag.Z, False)
     return Instr(4, 1, "RLA")
 
 
 def rra(ctx: ops.Ctx):
     rr(ctx, ops.A)
+    ctx.regs.set_flag(Flag.Z, False)
     return Instr(4, 1, "RRA")
 
 
