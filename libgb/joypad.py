@@ -28,15 +28,15 @@ class JoypadIOHandler(IOHandler):
         return addr == JoypadIO.JOYP.value
     def load(self, addr: int) -> int:
         keys = pygame.key.get_pressed()
-        joyp = self.mode
+        joyp = self.mode | 0xf
         if (joyp & JOYP_DIR_FLAG) == 0:
             for dir, flag in DIR_KEYS.items():
                 if keys[dir]:
-                    joyp |= flag
+                    joyp &= ~flag
         if (joyp & JOYP_BUTTON_FLAG) == 0:
             for button, flag in BUTTON_KEYS.items():
                 if keys[button]:
-                    joyp |= flag
+                    joyp &= ~flag
         return joyp
     def store(self, addr: int, val: int):
         self.mode = val & JOYP_MODE_MASK
