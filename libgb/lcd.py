@@ -29,10 +29,10 @@ class LCD:
         for j in range(144):
             for i in range(160):
                 p = (3 - display[i][j]) * 85
-                bs[k] = 0xff
+                bs[k] = p
                 bs[k+1] = p
                 bs[k+2] = p
-                bs[k+3] = p
+                bs[k+3] = 0xff
                 k += 4
 
         self.screen.get_buffer().write(bs)
