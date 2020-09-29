@@ -54,6 +54,15 @@ def load_tile(tile_bs: bytes):
     return tile
 
 
+def load_sprite(sprite_bs: bytes):
+    assert len(sprite_bs) == 4
+    y = sprite_bs[0]
+    x = sprite_bs[1]
+    tile_idx = sprite_bs[2]
+    flags = sprite_bs[3]
+    return x, y, tile_idx, flags
+
+
 LY_CLKS = 456
 VBLANK_START = 144
 LY_END = 153
@@ -78,15 +87,15 @@ class GPU:
         self.next_ly = LY_CLKS
         self.lcd = LCD()
 
-    def get_bgp_map(self):
-        bgp = self.regs[DisplayIO.BGP]
+    def get_palette(self, palette_reg: DisplayIO):
+        bgp = self.regs[palette_reg]
         return [bgp & 3, (bgp >> 2) & 3, (bgp >> 4) & 3, (bgp >> 6) & 3]
 
     def render_bg(self, mmu, display):
         bg_tile_map = get_mem(mmu.video_ram, BGMAP_1)
         bg_tile_data = get_mem(mmu.video_ram, (0x8800, 0x97FF))
         bg_tiles = [load_tile(bg_tile_data[i * 16: (i + 1) * 16]) for i in range(len(bg_tile_data) // 16)]
-        palette = self.get_bgp_map()
+        palette = self.get_palette(DisplayIO.BGP)
 
         bg = [[0] * 256 for _ in range(256)]
         for i, tile_idx in enumerate(bg_tile_map):
@@ -100,12 +109,40 @@ class GPU:
             for j in range(144):
                 display[i][j] = bg[i][j]
 
+    def render_obj(self, mmu, display):
+        obj = mmu.oam.mem
+        sprites = []
+        for i in range(0, len(obj), 4):
+            sprites.append(load_sprite(obj[i:i+4]))
+        obj_tile_data = get_mem(mmu.video_ram, (0x8000, 0x8FFF))
+        obj_tiles = [load_tile(obj_tile_data[i * 16: (i + 1) * 16]) for i in range(len(obj_tile_data) // 16)]
+        palette_0 = self.get_palette(DisplayIO.OBP0)
+        palette_1 = self.get_palette(DisplayIO.OBP0)
+
+        for X,Y,idx,flags in reversed(sorted(sprites)):
+            if 0 in (X, Y):
+                continue
+            tile = obj_tiles[idx]
+            X -= 8
+            Y -= 16
+            palette = palette_0 if flags & 0x10 == 0 else palette_1
+            for i in range(8):
+                for j in range(8):
+                    x = X + i
+                    y = Y + j
+                    color = tile[j][i]
+                    if 0 <= x < 160 and 0 <= y < 144 and color != 0:
+                        display[x][y] = palette[color]
+
     def draw_display(self, mmu: MMU):
         lcdc = LCDC(self.regs[DisplayIO.LCDC])
         display = [[0] * 144 for _ in range(160)]
 
         if LCDC.BG_DISPLAY in lcdc:
             self.render_bg(mmu, display)
+
+        if LCDC.OBJ_DISPLAY in lcdc:
+            self.render_obj(mmu, display)
 
         self.lcd.draw_display(display)
 
@@ -149,7 +186,7 @@ class DisplayIOHandler(IOHandler):
     def store(self, addr: int, val: int):
         port = DisplayIO(addr)
         if port is DisplayIO.STAT:
-            print(val)
+            print("STAT: ${:02X}".format(val))
         if port is DisplayIO.DMA:
             src_start = val << 8
             dst_start = 0xFE00
