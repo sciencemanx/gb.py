@@ -667,6 +667,7 @@ OP_TABLE[0xE9] = jp_hl
 OP_TABLE[0xEA] = ld(ops.Mem(ops.imm16), ops.A)
 OP_TABLE[0xF0] = ld(ops.A, ops.Mem(ops.imm8, offset=0xFF00))
 OP_TABLE[0xF2] = ld(ops.A, ops.Mem(ops.C, offset=0xFF00))
+OP_TABLE[0xF9] = ld(ops.SP, ops.HL)
 OP_TABLE[0xFA] = ld(ops.A, ops.Mem(ops.imm16))
 
 INC_R_START = 0x04
