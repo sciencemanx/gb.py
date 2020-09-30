@@ -562,6 +562,8 @@ def daa(ctx: ops.Ctx) -> Instr:
         if h:
             a -= 0x6
     ops.A.store(ctx, a)
+    a = ops.A.load(ctx)
+
     ctx.regs.set_flag(Flag.C, c)
     ctx.regs.set_flag(Flag.Z, a == 0)
     ctx.regs.set_flag(Flag.H, False)
