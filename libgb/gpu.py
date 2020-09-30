@@ -196,7 +196,6 @@ class DisplayIOHandler(IOHandler):
             print("!!! attempting to read from DMA!")
             return 0xff
         else:
-            # print("!gpu load from {} = {}".format(repr(port), self.gpu.regs[port]))
             return self.gpu.regs[port]
     def store(self, addr: int, val: int):
         port = DisplayIO(addr)
@@ -205,7 +204,6 @@ class DisplayIOHandler(IOHandler):
         if port is DisplayIO.DMA:
             src_start = val << 8
             dst_start = 0xFE00
-            # print("!!! triggering DMA request from {:04X}".format(src_start))
             for i in range(0xA0):
                 v = self.mmu.load(src_start + i)
                 self.mmu.store(dst_start + i, v)
