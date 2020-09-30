@@ -34,6 +34,10 @@ def from_rel(n: int) -> int:
         return n
 
 
+def half_carry(l: int, r: int, res: int) -> bool:
+    return ((l ^ r ^ res) & 0x10) != 0
+
+
 def unimplemented(ctx: ops.Ctx):
     op = ctx.mmu.load(ctx.regs.load(reg.PC))
     return Instr(-1, 0, "UNIMP [0x{:02X}]".format(op))
@@ -206,7 +210,7 @@ def incdec(op: ops.Operand, inc: bool):
         if not op.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
             ctx.regs.set_flag(Flag.N, False)
-            # regs.set_flag(Flag.H, idk lol)
+            ctx.regs.set_flag(Flag.H, half_carry(val, 1, res))
         cycles = 4
         if isinstance(op, ops.Mem):
             cycles += op.cost() * 2 # read/write
@@ -219,15 +223,16 @@ def incdec(op: ops.Operand, inc: bool):
 
 def add(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
-        old_l = lhs.load(ctx)
-        lhs.store(ctx, old_l + rhs.load(ctx))
-        new_l = lhs.load(ctx)
+        l = lhs.load(ctx)
+        r = rhs.load(ctx)
+        lhs.store(ctx, l + r)
+        res = lhs.load(ctx)
 
-        ctx.regs.set_flag(Flag.C, old_l > new_l)
+        ctx.regs.set_flag(Flag.C, l > res)
         ctx.regs.set_flag(Flag.N, True)
-        # ctx.regs.set_flag(Flag.H, )
+        ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         if not lhs.is_dword():
-            ctx.regs.set_flag(Flag.Z, new_l == 0)
+            ctx.regs.set_flag(Flag.Z, res == 0)
 
         cycles = 4 + lhs.cost() + rhs.cost()
         step = 1 + rhs.space()
@@ -238,16 +243,16 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
 
 def adc(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
-        old_l = lhs.load(ctx)
+        l, r = lhs.load(ctx), rhs.load(ctx)
         C = int(ctx.regs.get_flag(Flag.C))
-        lhs.store(ctx, old_l + rhs.load(ctx) + C)
-        new_l = lhs.load(ctx)
+        lhs.store(ctx, l + r + C)
+        res = lhs.load(ctx)
 
-        ctx.regs.set_flag(Flag.C, old_l > new_l)
+        ctx.regs.set_flag(Flag.C, l > res)
         ctx.regs.set_flag(Flag.N, True)
-        # ctx.regs.set_flag(Flag.H, )
+        ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         if not lhs.is_dword():
-            ctx.regs.set_flag(Flag.Z, new_l == 0)
+            ctx.regs.set_flag(Flag.Z, res == 0)
 
         cycles = 4 + lhs.cost() + rhs.cost()
         step = 1 + rhs.space()
@@ -258,13 +263,14 @@ def adc(lhs: ops.Operand, rhs: ops.Operand):
 
 def sub(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
-        val = lhs.load(ctx) - rhs.load(ctx)
-        lhs.store(ctx, val)
+        l, r = lhs.load(ctx), rhs.load(ctx)
+        lhs.store(ctx, l - r)
+        res = lhs.load(ctx)
 
-        ctx.regs.set_flag(Flag.C, val < 0)
+        ctx.regs.set_flag(Flag.C, res < 0)
         ctx.regs.set_flag(Flag.N, True)
-        # ctx.regs.set_flag(Flag.H, idk)
-        ctx.regs.set_flag(Flag.Z, val == 0)
+        ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
+        ctx.regs.set_flag(Flag.Z, res == 0)
 
         cycles = 4 + rhs.cost()
         step = 1 + rhs.space()
@@ -339,11 +345,12 @@ def or_(lhs: ops.Operand, rhs: ops.Operand):
 
 def cp(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
-        val = lhs.load(ctx) - rhs.load(ctx)
+        l, r = lhs.load(ctx), rhs.load(ctx)
+        val = l - r
 
         ctx.regs.set_flag(Flag.C, val < 0)
         ctx.regs.set_flag(Flag.N, True)
-        # ctx.regs.set_flag(Flag.H, idk)
+        ctx.regs.set_flag(Flag.H, half_carry(l, r, val))
         ctx.regs.set_flag(Flag.Z, val == 0)
 
         cycles = 4 + rhs.cost()
