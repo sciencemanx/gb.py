@@ -54,6 +54,11 @@ def load_tile(tile_bs: bytes):
     return tile
 
 
+def load_tiles(tile_bs: bytes):
+    assert len(tile_bs) % 16 == 0
+    return [load_tile(tile_bs[i:i + 16]) for i in range(0, len(tile_bs), 16)]
+
+
 def load_sprite(sprite_bs: bytes):
     assert len(sprite_bs) == 4
     y = sprite_bs[0]
@@ -91,15 +96,12 @@ class GPU:
         bgp = self.regs[palette_reg]
         return [bgp & 3, (bgp >> 2) & 3, (bgp >> 4) & 3, (bgp >> 6) & 3]
 
-    def render_bg(self, mmu, display):
-        bg_tile_map = get_mem(mmu.video_ram, BGMAP_1)
-        bg_tile_data = get_mem(mmu.video_ram, (0x8800, 0x97FF))
-        bg_tiles = [load_tile(bg_tile_data[i * 16: (i + 1) * 16]) for i in range(len(bg_tile_data) // 16)]
+    def render_bg(self, display, tiles, tile_map, offset):
         palette = self.get_palette(DisplayIO.BGP)
 
         bg = [[0] * 256 for _ in range(256)]
-        for i, tile_idx in enumerate(bg_tile_map):
-            tile = bg_tiles[(tile_idx + 128) % 256]
+        for i, tile_idx in enumerate(tile_map):
+            tile = tiles[(tile_idx + offset) % 256]
             x, y = i % 32, i // 32
             for j in range(8):
                 for k in range(8):
@@ -109,20 +111,14 @@ class GPU:
             for j in range(144):
                 display[i][j] = bg[i][j]
 
-    def render_obj(self, mmu, display):
-        obj = mmu.oam.mem
-        sprites = []
-        for i in range(0, len(obj), 4):
-            sprites.append(load_sprite(obj[i:i+4]))
-        obj_tile_data = get_mem(mmu.video_ram, (0x8000, 0x8FFF))
-        obj_tiles = [load_tile(obj_tile_data[i * 16: (i + 1) * 16]) for i in range(len(obj_tile_data) // 16)]
+    def render_obj(self, display, tiles, sprites):
         palette_0 = self.get_palette(DisplayIO.OBP0)
         palette_1 = self.get_palette(DisplayIO.OBP0)
 
         for X,Y,idx,flags in reversed(sorted(sprites)):
             if 0 in (X, Y):
                 continue
-            tile = obj_tiles[idx]
+            tile = tiles[idx]
             X -= 8
             Y -= 16
             palette = palette_0 if flags & 0x10 == 0 else palette_1
@@ -138,11 +134,30 @@ class GPU:
         lcdc = LCDC(self.regs[DisplayIO.LCDC])
         display = [[0] * 144 for _ in range(160)]
 
+        if LCDC.BG_WINDOW_DATA_SELECT in lcdc:
+            bg_window_data_range = (0x8000, 0x8FFF)
+            offset = 0
+        else:
+            bg_window_data_range = (0x8800, 0x97FF)
+            offset = 128
+
         if LCDC.BG_DISPLAY in lcdc:
-            self.render_bg(mmu, display)
+            bg_window_data = get_mem(mmu.video_ram, bg_window_data_range)
+            bg_window_tiles = load_tiles(bg_window_data)
+
+            if LCDC.BG_TILE_SELECT in lcdc:
+                tile_map = get_mem(mmu.video_ram, BGMAP_2)
+            else:
+                tile_map = get_mem(mmu.video_ram, BGMAP_1)
+
+            self.render_bg(display, bg_window_tiles, tile_map, offset)
 
         if LCDC.OBJ_DISPLAY in lcdc:
-            self.render_obj(mmu, display)
+            obj_tile_data = get_mem(mmu.video_ram, (0x8000, 0x8FFF))
+            obj_tiles = load_tiles(obj_tile_data)
+            obj_map = mmu.oam.mem
+            sprites = [load_sprite(obj_map[i:i+4]) for i in range(0, len(obj_map), 4)]
+            self.render_obj(display, obj_tiles, sprites)
 
         self.lcd.draw_display(display)
 
