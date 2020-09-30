@@ -85,8 +85,9 @@ class CPU:
         self.trace.append((pc, inst.mnem))
         if pc in self.bps:
             self.single_step = True
-            for t in self.trace:
+            for t in self.trace[:-1]:
                 print("{:04X}: {}".format(t[0], t[1]))
+            self.trace.clear()
 
 
         if show or self.single_step:
