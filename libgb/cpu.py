@@ -1,3 +1,4 @@
+from collections import deque
 from enum import IntFlag
 
 from . import instr, reg
@@ -40,9 +41,9 @@ class CPU:
         self.cycles = 0
         self.max_execs = max_execs
         self.execed = []
-        # self.bps = [0x02A8, 0x455, 0x4DA]
         self.bps = []
         self.single_step = False
+        self.trace = deque(maxlen=20)
 
         self.if_vector = 0
         self.ie_vector = 0
@@ -81,8 +82,11 @@ class CPU:
         pc = self.regs.load(reg.PC)
         op = mmu.load(pc)
         inst = instr.exec_instr(op, self.regs, mmu)
+        self.trace.append((pc, inst.mnem))
         if pc in self.bps:
             self.single_step = True
+            for t in self.trace:
+                print("{:04X}: {}".format(t[0], t[1]))
 
 
         if show or self.single_step:
