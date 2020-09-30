@@ -43,13 +43,13 @@ class Timer:
         self.ticks = 0
 
     def step(self, cpu: CPU):
-        if not self.is_running():
-            return
         self.ticks += 1
         if self.ticks % DIV_TICKS == 0:
             self.div += 1
             if self.div > 0xff:
                 self.div = 0
+        if not self.is_running():
+            return
         if self.ticks % MODE_TICKS[self.get_mode()] == 0:
             self.tima += 1
             if self.tima > 0xff:
