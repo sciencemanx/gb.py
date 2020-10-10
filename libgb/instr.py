@@ -209,7 +209,7 @@ def incdec(op: ops.Operand, inc: bool):
         res = op.load(ctx)
         if not op.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
-            ctx.regs.set_flag(Flag.N, False)
+            ctx.regs.set_flag(Flag.N, not inc)
             ctx.regs.set_flag(Flag.H, half_carry(val, 1, res))
         cycles = 4
         if isinstance(op, ops.Mem):
@@ -229,7 +229,7 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
         res = lhs.load(ctx)
 
         ctx.regs.set_flag(Flag.C, l > res)
-        ctx.regs.set_flag(Flag.N, True)
+        ctx.regs.set_flag(Flag.N, False)
         ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         if not lhs.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
@@ -249,7 +249,7 @@ def adc(lhs: ops.Operand, rhs: ops.Operand):
         res = lhs.load(ctx)
 
         ctx.regs.set_flag(Flag.C, l > res)
-        ctx.regs.set_flag(Flag.N, True)
+        ctx.regs.set_flag(Flag.N, False)
         ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         if not lhs.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
@@ -267,7 +267,7 @@ def sub(lhs: ops.Operand, rhs: ops.Operand):
         lhs.store(ctx, l - r)
         res = lhs.load(ctx)
 
-        ctx.regs.set_flag(Flag.C, res < 0)
+        ctx.regs.set_flag(Flag.C, l < r)
         ctx.regs.set_flag(Flag.N, True)
         ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         ctx.regs.set_flag(Flag.Z, res == 0)
