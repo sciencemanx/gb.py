@@ -201,6 +201,34 @@ def ld(dst: ops.Operand, src: ops.Operand):
     return f
 
 
+def add_sp_r8(ctx: ops.Ctx) -> Instr:
+    sp = ops.SP.load(ctx)
+    r8 = from_rel(ops.imm8.load(ctx))
+    ops.SP.store(ctx, sp + r8)
+    res = ops.SP.load(ctx)
+
+    ctx.regs.set_flag(Flag.Z, False)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.C, res < sp)
+    # ctx.regs.set_flag(Flag.H, res < r8)
+
+    return Instr(16, 2, "ADD SP+${}".format(r8))
+
+
+def ld_hl_sp_r8(ctx: ops.Ctx) -> Instr:
+    sp = ops.SP.load(ctx)
+    r8 = from_rel(ops.imm8.load(ctx))
+    ops.HL.store(ctx, sp + r8)
+    res = ops.HL.load(ctx)
+
+    ctx.regs.set_flag(Flag.Z, False)
+    ctx.regs.set_flag(Flag.N, False)
+    ctx.regs.set_flag(Flag.C, res < sp)
+    # ctx.regs.set_flag(Flag.H, res < r8)
+
+    return Instr(12, 2, "LD HL,SP+${}".format(r8))
+
+
 def incdec(op: ops.Operand, inc: bool):
     def f(ctx: ops.Ctx) -> Instr:
         step = 1 if inc else -1
@@ -248,9 +276,9 @@ def adc(lhs: ops.Operand, rhs: ops.Operand):
         lhs.store(ctx, l + r + C)
         res = lhs.load(ctx)
 
-        ctx.regs.set_flag(Flag.C, l > res)
+        ctx.regs.set_flag(Flag.C, (l + r + C) > 0xff)
         ctx.regs.set_flag(Flag.N, False)
-        ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
+        ctx.regs.set_flag(Flag.H, ((l & 0xf) + (r & 0xf) + C) > 0xf)
         if not lhs.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
 
@@ -281,13 +309,16 @@ def sub(lhs: ops.Operand, rhs: ops.Operand):
 def sbc(lhs: ops.Operand, rhs: ops.Operand):
     def f(ctx: ops.Ctx) -> Instr:
         C = int(ctx.regs.get_flag(Flag.C))
-        val = lhs.load(ctx) - rhs.load(ctx) - C
+        l = lhs.load(ctx)
+        r = rhs.load(ctx)
+        val = l - r - C
         lhs.store(ctx, val)
+        res = lhs.load(ctx)
 
         ctx.regs.set_flag(Flag.C, val < 0)
         ctx.regs.set_flag(Flag.N, True)
-        # ctx.regs.set_flag(Flag.H, idk)
-        ctx.regs.set_flag(Flag.Z, val == 0)
+        ctx.regs.set_flag(Flag.H, ((l & 0xf) - (r & 0xf) - C) < 0)
+        ctx.regs.set_flag(Flag.Z, res == 0)
 
         cycles = 4 + rhs.cost()
         step = 1 + rhs.space()
@@ -671,6 +702,8 @@ OP_TABLE[0xF0] = ld(ops.A, ops.Mem(ops.imm8, offset=0xFF00))
 OP_TABLE[0xF2] = ld(ops.A, ops.Mem(ops.C, offset=0xFF00))
 OP_TABLE[0xF9] = ld(ops.SP, ops.HL)
 OP_TABLE[0xFA] = ld(ops.A, ops.Mem(ops.imm16))
+OP_TABLE[0xE8] = add_sp_r8
+OP_TABLE[0xF8] = ld_hl_sp_r8
 
 INC_R_START = 0x04
 DEC_R_START = 0x05
