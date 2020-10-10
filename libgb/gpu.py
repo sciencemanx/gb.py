@@ -1,8 +1,6 @@
 from enum import IntFlag
 from typing import Dict, List
 
-from pygame.image import load
-
 from .cpu import CPU, Interrupt
 from .io import IOHandler, DisplayIO
 from .lcd import LCD
@@ -107,9 +105,12 @@ class GPU:
                 for k in range(8):
                     bg[(x * 8) + j][(y * 8) + k] = palette[tile[k][j]]
 
+        scx = self.regs[DisplayIO.SCX]
+        scy = self.regs[DisplayIO.SCY]
+
         for i in range(160):
             for j in range(144):
-                display[i][j] = bg[i][j]
+                display[i][j] = bg[(i + scx) % 256][(j + scy) % 256]
 
     def render_obj(self, display, tiles, sprites):
         palette_0 = self.get_palette(DisplayIO.OBP0)
