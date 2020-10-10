@@ -119,14 +119,18 @@ class GPU:
         for X,Y,idx,flags in reversed(sorted(sprites)):
             if 0 in (X, Y):
                 continue
+            x_flip = (flags & (1 << 5)) != 0
+            y_flip = (flags & (1 << 6)) != 0
             tile = tiles[idx]
             X -= 8
             Y -= 16
             palette = palette_0 if flags & 0x10 == 0 else palette_1
             for i in range(8):
                 for j in range(8):
-                    x = X + i
-                    y = Y + j
+                    x_off = 7 - i if x_flip else i
+                    y_off = 7 - j if y_flip else j
+                    x = X + x_off
+                    y = Y + y_off
                     color = tile[j][i]
                     if 0 <= x < 160 and 0 <= y < 144 and color != 0:
                         display[x][y] = palette[color]
