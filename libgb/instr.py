@@ -209,8 +209,8 @@ def add_sp_r8(ctx: ops.Ctx) -> Instr:
 
     ctx.regs.set_flag(Flag.Z, False)
     ctx.regs.set_flag(Flag.N, False)
-    ctx.regs.set_flag(Flag.C, res < sp)
-    # ctx.regs.set_flag(Flag.H, res < r8)
+    ctx.regs.set_flag(Flag.C, ((sp & 0xff) + (r8 & 0xff)) > 0xff)
+    ctx.regs.set_flag(Flag.H, half_carry(sp, r8 & 0xffff, res))
 
     return Instr(16, 2, "ADD SP+${}".format(r8))
 
@@ -223,8 +223,8 @@ def ld_hl_sp_r8(ctx: ops.Ctx) -> Instr:
 
     ctx.regs.set_flag(Flag.Z, False)
     ctx.regs.set_flag(Flag.N, False)
-    ctx.regs.set_flag(Flag.C, res < sp)
-    # ctx.regs.set_flag(Flag.H, res < r8)
+    ctx.regs.set_flag(Flag.C, ((sp & 0xff) + (r8 & 0xff)) > 0xff)
+    ctx.regs.set_flag(Flag.H, half_carry(sp, r8 & 0xffff, res))
 
     return Instr(12, 2, "LD HL,SP+${}".format(r8))
 
@@ -258,7 +258,10 @@ def add(lhs: ops.Operand, rhs: ops.Operand):
 
         ctx.regs.set_flag(Flag.C, l > res)
         ctx.regs.set_flag(Flag.N, False)
-        ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
+        if lhs.is_dword():
+            ctx.regs.set_flag(Flag.H, half_carry(l >> 8, r >> 8, res >> 8))
+        else:
+            ctx.regs.set_flag(Flag.H, half_carry(l, r, res))
         if not lhs.is_dword():
             ctx.regs.set_flag(Flag.Z, res == 0)
 
