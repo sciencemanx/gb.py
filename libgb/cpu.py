@@ -59,6 +59,7 @@ class CPU:
 
     def request_interrupt(self, i: Interrupt):
         self.if_vector |= i.value
+        self.regs.halted = False
 
 
     def service_interrupts(self, mmu: MMU):
@@ -69,8 +70,13 @@ class CPU:
             if interrupt & triggered_interrupts != 0:
                 self.if_vector &= ~interrupt
                 instr.interrupt(self.regs, mmu, target)
-                self.regs.halted = False
                 return
+
+
+    def show_trace(self):
+        for addr, mnem in self.trace:
+            print("{:04X}: {}".format(addr, mnem))
+
 
     def step(self, mmu: MMU, show=False) -> bool:
         if self.regs.IME:
@@ -85,8 +91,7 @@ class CPU:
         self.trace.append((pc, inst.mnem))
         if pc in self.bps:
             self.single_step = True
-            for t in self.trace[:-1]:
-                print("{:04X}: {}".format(t[0], t[1]))
+            self.show_trace()
             self.trace.clear()
 
 
