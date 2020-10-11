@@ -198,7 +198,7 @@ class GPU:
 
             self.render_window(display, bg_window_tiles, tile_map, offset)
 
-        self.lcd.draw_display(display)
+        return self.lcd.draw_display(display)
 
     def step(self, cpu: CPU, mmu: MMU):
         self.next_ly -= 1
@@ -218,8 +218,9 @@ class GPU:
                 cpu.request_interrupt(Interrupt.LCD_STAT)
             if self.regs[DisplayIO.LY] == VBLANK_START:
                 cpu.request_interrupt(Interrupt.VBLANK)
-                self.draw_display(mmu)
+                return self.draw_display(mmu)
 
+        return False
 
 class DisplayIOHandler(IOHandler):
     def __init__(self, gpu: GPU, mmu: MMU):

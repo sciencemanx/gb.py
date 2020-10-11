@@ -12,8 +12,6 @@ class LCD:
         self.screen = pygame.display.set_mode(DIMENSION)
         self.pixels = pygame.PixelArray(self.screen)
 
-        pygame.event.get()
-
     def wait(self):
         while True:
             for event in pygame.event.get():
@@ -37,4 +35,4 @@ class LCD:
 
         self.screen.get_buffer().write(bs)
         pygame.display.flip()
-        pygame.event.get()
+        return pygame.QUIT in [e.type for e in pygame.event.get()]

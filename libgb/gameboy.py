@@ -4,7 +4,6 @@ from typing import NamedTuple
 from . import cpu
 from . import gpu
 from . import joypad
-# from . import lcd
 from . import mmu
 from . import rom
 from . import serial
@@ -22,24 +21,21 @@ class Gameboy(NamedTuple):
         ticks = 0
         while not done:
             if ticks >= self.cpu.cycles:
-                done = self.cpu.step(self.mmu)
-            self.gpu.step(self.cpu, self.mmu)
+                done |= self.cpu.step(self.mmu)
+            done |= self.gpu.step(self.cpu, self.mmu)
             self.timer.step(self.cpu)
             ticks += 1
         end = time.time()
-        self.gpu.dump(self.mmu)
         print("-- REGS --")
         print(self.cpu.regs)
         print("num execs: {}".format(self.cpu.execs))
         print("ticks: {}".format(ticks))
         print("cpu secs: {}".format(ticks / cpu.CPU_CLOCK))
         print("wall secs: {}".format(end - start))
-        self.gpu.lcd.wait()
 
     @staticmethod
     def from_rom(rom: rom.Rom):
         c = cpu.CPU()
-        # l = lcd.LCD()
         g = gpu.GPU()
         m = mmu.MMU.from_rom(rom)
         t = timer.Timer()
