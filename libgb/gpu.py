@@ -110,7 +110,29 @@ class GPU:
             for i in range(160):
                 display[i][j] = bg[(i + scx) % 256][(j + scy) % 256]
 
-    def render_obj(self, display, tiles, sprites):
+    def render_window(self, display, tiles, tile_map, offset):
+        palette = self.get_palette(DisplayIO.BGP)
+
+        window = [[0] * 256 for _ in range(256)]
+        for i, tile_idx in enumerate(tile_map):
+            tile = tiles[(tile_idx + offset) % 256]
+            x, y = i % 32, i // 32
+            for j in range(8):
+                for k in range(8):
+                    window[(x * 8) + j][(y * 8) + k] = palette[tile[k][j]]
+
+        wx = self.regs[DisplayIO.WX]
+        wy = self.regs[DisplayIO.WY]
+
+        for i in range(160):
+            if wx + i >= 160:
+                break
+            for j in range(144):
+                if wy + j >= 144:
+                    break
+                display[i + wx][j + wy] = window[i][j]
+
+    def render_obj(self, display, tiles, sprites, size_select):
         palette_0 = self.get_palette(DisplayIO.OBP0)
         palette_1 = self.get_palette(DisplayIO.OBP0)
 
@@ -119,14 +141,17 @@ class GPU:
                 continue
             x_flip = (flags & (1 << 5)) != 0
             y_flip = (flags & (1 << 6)) != 0
-            tile = tiles[idx]
+            palette = palette_0 if flags & 0x10 == 0 else palette_1
+
+            tile = tiles[idx] + tiles[idx + 1] if size_select else tiles[idx]
             X -= 8
             Y -= 16
-            palette = palette_0 if flags & 0x10 == 0 else palette_1
-            for i in range(8):
-                for j in range(8):
-                    x_off = 7 - i if x_flip else i
-                    y_off = 7 - j if y_flip else j
+            width = 8
+            height = 16 if size_select else 8
+            for i in range(width):
+                for j in range(height):
+                    x_off = width - i - 1 if x_flip else i
+                    y_off = height - j - 1 if y_flip else j
                     x = X + x_off
                     y = Y + y_off
                     color = tile[j][i]
@@ -160,13 +185,26 @@ class GPU:
             obj_tiles = load_tiles(obj_tile_data)
             obj_map = mmu.oam.mem
             sprites = [load_sprite(obj_map[i:i+4]) for i in range(0, len(obj_map), 4)]
-            self.render_obj(display, obj_tiles, sprites)
+            self.render_obj(display, obj_tiles, sprites, LCDC.OBJ_SIZE_SELECT in lcdc)
+
+        if LCDC.WINDOW_DISPLAY in lcdc:
+            bg_window_data = get_mem(mmu.video_ram, bg_window_data_range)
+            bg_window_tiles = load_tiles(bg_window_data)
+
+            if LCDC.WINDOW_TILE_SELECT in lcdc:
+                tile_map = get_mem(mmu.video_ram, BGMAP_2)
+            else:
+                tile_map = get_mem(mmu.video_ram, BGMAP_1)
+
+            self.render_window(display, bg_window_tiles, tile_map, offset)
 
         self.lcd.draw_display(display)
 
     def step(self, cpu: CPU, mmu: MMU):
         self.next_ly -= 1
         if self.next_ly == 0:
+            self.next_ly = LY_CLKS
+
             if self.regs[DisplayIO.LY] < 144:
                 scx = self.regs[DisplayIO.SCX]
                 scy = self.regs[DisplayIO.SCY]
@@ -181,8 +219,6 @@ class GPU:
             if self.regs[DisplayIO.LY] == VBLANK_START:
                 cpu.request_interrupt(Interrupt.VBLANK)
                 self.draw_display(mmu)
-
-            self.next_ly = LY_CLKS
 
 
 class DisplayIOHandler(IOHandler):
