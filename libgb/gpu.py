@@ -77,7 +77,6 @@ class GPU:
             DisplayIO.LCDC: 0,
             DisplayIO.STAT: 0,
             DisplayIO.LY: 0,
-
             DisplayIO.SCY: 0,
             DisplayIO.SCX: 0,
             DisplayIO.LYC: 0,
@@ -87,6 +86,7 @@ class GPU:
             DisplayIO.WY: 0,
             DisplayIO.WX: 0,
         }
+        self.scs = [(0,0) for _ in range(144)]
         self.next_ly = LY_CLKS
         self.lcd = LCD()
 
@@ -105,11 +105,9 @@ class GPU:
                 for k in range(8):
                     bg[(x * 8) + j][(y * 8) + k] = palette[tile[k][j]]
 
-        scx = self.regs[DisplayIO.SCX]
-        scy = self.regs[DisplayIO.SCY]
-
-        for i in range(160):
-            for j in range(144):
+        for j in range(144):
+            scx, scy = self.scs[j]
+            for i in range(160):
                 display[i][j] = bg[(i + scx) % 256][(j + scy) % 256]
 
     def render_obj(self, display, tiles, sprites):
@@ -169,6 +167,11 @@ class GPU:
     def step(self, cpu: CPU, mmu: MMU):
         self.next_ly -= 1
         if self.next_ly == 0:
+            if self.regs[DisplayIO.LY] < 144:
+                scx = self.regs[DisplayIO.SCX]
+                scy = self.regs[DisplayIO.SCY]
+                self.scs[self.regs[DisplayIO.LY]] = (scx, scy)
+
             self.regs[DisplayIO.LY] += 1
 
             if self.regs[DisplayIO.LY] > LY_END:
@@ -180,13 +183,6 @@ class GPU:
                 self.draw_display(mmu)
 
             self.next_ly = LY_CLKS
-
-    def dump(self, mmu: MMU):
-        block_0 = get_mem(mmu.video_ram, BLOCK_0)
-        block_1 = get_mem(mmu.video_ram, BLOCK_1)
-        block_2 = get_mem(mmu.video_ram, BLOCK_2)
-        bgmap_1 = get_mem(mmu.video_ram, BGMAP_1)
-        bgmap_2 = get_mem(mmu.video_ram, BGMAP_2)
 
 
 class DisplayIOHandler(IOHandler):
