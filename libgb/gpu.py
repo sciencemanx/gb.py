@@ -121,7 +121,7 @@ class GPU:
                 for k in range(8):
                     window[(x * 8) + j][(y * 8) + k] = palette[tile[k][j]]
 
-        wx = self.regs[DisplayIO.WX]
+        wx = self.regs[DisplayIO.WX] - 7
         wy = self.regs[DisplayIO.WY]
 
         for i in range(160):
