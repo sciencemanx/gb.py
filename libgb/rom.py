@@ -59,7 +59,7 @@ class Header(NamedTuple):
     @staticmethod
     def from_rom(rom: bytes):
         whole_title = rom[TITLE_START_OFFSET:TITLE_END_OFFSET + 1]
-        title = whole_title[:whole_title.index(0)].decode()
+        title = whole_title[:whole_title.find(0)].decode()
 
         cart_type = CartridgeType(rom[CARTRIDGE_TYPE_OFFSET])
 
