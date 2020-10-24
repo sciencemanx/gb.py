@@ -23,14 +23,33 @@ class MemoryRegion(ABC):
 class Unimplemented(MemoryRegion):
     name = "unimplemented"
     def load(self, addr: int) -> int:
-        assert 0, "read from 0x{:04x}".format(addr)
+        assert 0, "read in {} from 0x{:04x}".format(self.name, addr)
     def store(self, addr: int, val: int):
-        assert 0, "write to 0x{:04x} = 0x{:X}".format(addr, val)
+        assert 0, "!!! write in {} to 0x{:04x} = 0x{:X}".format(self.name, addr, val)
 
 class FixedRom(MemoryRegion):
     name = "fixed-rom-bank"
+    def __init__(self, *args, set_rom_bank=None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.set_rom_bank=None
     def load(self, addr: int) -> int:
         return self.mem[self.translate(addr)]
+    def store(self, addr: int, val: int):
+        if self.set_rom_bank and 0x2000 <= addr < 0x4000:
+            self.set_rom_bank(val)
+        # print("! write to {} at 0x{:04x} = 0x{:X}".format(self.name, addr, val))
+
+class BankedRom(MemoryRegion):
+    name = "banked-rom-bank"
+    bank = 1
+    def set_bank(self, bank: int):
+        self.bank = bank
+    def get_bank(self) -> bytes:
+        size = self.upper - self.lower + 1
+        bank_start = size * (self.bank - 1)
+        return self.mem[bank_start:bank_start+size]
+    def load(self, addr: int) -> int:
+        return self.get_bank()[self.translate(addr)]
     def store(self, addr: int, val: int):
         print("! write to {} at 0x{:04x} = 0x{:X}".format(self.name, addr, val))
 
@@ -56,6 +75,8 @@ class SpriteAttributeTable(FixedWorkRam):
 
 class ExternalRam(Unimplemented):
     name = "external-ram"
+    def store(self, addr: int, val: int):
+        return
 
 class MirrorRam(Unimplemented):
     name = "mirror-ram"
