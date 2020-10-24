@@ -45,6 +45,7 @@ Below are a list of *playable* games. Many experience [bugs](#bugs)!
 - External RAM
 - External timer
 - Full STAT and LCDC register/interrupt support
+- "Display-on-CLI" support
 - Save states
 - Debugger :)
 
