@@ -1,0 +1,71 @@
+operands:
+raw:
+    int8_t regs A,B,C,D,E,H,L
+    int16_t regs AF,BC,DE,HL,SP
+    uint8_t imm
+    uint16_t imm
+    int8_t rel
+pointer:
+    (int8_t *) raw + offset
+    (int16_t *) raw + offset
+
+one-off:
+0x00 NOP
+0x07,0E,17,1E R**A
+0x08 LD (a16), SP
+0x10 STOP
+0x18 JR n
+0x27,2E,37,3E DAA/CPL/SCF/CCF
+0x76 HALT
+0xC3 JP nn
+0xC9 RET
+0xCB prefix CB
+0xCD CALL nn
+0xD9 RETI
+0xE0,F0 LDH
+0xE2,F2 LD (C),A
+0xE8 ADD SP,n
+0xE9 JP (HL)
+0xEA,FA LD (nn),A
+0xF3 DI
+0xF8 LD HL, SP+n
+0xF9 LD SP, HL
+0xFA EI
+
+0x01:4/16 LD rr,nn
+    76 | 54  | 3210
+    00 | dst | 0001
+0x02:4/16 LD (rr),A
+    76 | 54  | 3210
+    00 | dst | 0010
+0x03:4/16 INC rr
+    76 | 54  | 3210
+    00 | dst | 0011
+0x04:8/8 INC r
+    76 | 543 | 210
+    00 | reg | 100
+0x05:8/8 DEC r
+    76 | 543 | 210
+    00 | reg | 101
+0x06:8/8 LD r,n
+    76 | 543 | 210
+    00 | dst | 110
+0x09:4/16 ADD rr,rr
+0x0A:4/16 LD A,(rr)
+0x0B:4/16 DEC rr
+0x20:4/8 JR cc,r8
+    765 | 43 | 210
+    001 | cc | 000
+0x40-0x7F LD r, r
+    76 | 543 | 210
+    01 | dst | src
+0x80-BF arith A, r
+    76 | 543 | 210
+    10 | op  | rhs
+0xC0:4/8 RET cc
+0xC1:4/16 POP rr
+0xC2:4/8 JP cc,nn
+0xC4:4/8 CALL cc,nn
+0xC5:4/16 POP rr
+0xC6:8/8 ADD rr
+0xC7:8/8 RST $z
