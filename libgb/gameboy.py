@@ -20,11 +20,19 @@ class Gameboy(NamedTuple):
         start = time.time()
         ticks = 0
         while not done:
-            if ticks >= self.cpu.cycles:
-                done |= self.cpu.step(self.mmu)
-            done |= self.gpu.step(self.cpu, self.mmu)
-            self.timer.step(self.cpu)
-            ticks += 1
+            try:
+                if ticks >= self.cpu.cycles:
+                    done |= self.cpu.step(self.mmu)
+                done |= self.gpu.step(self.cpu, self.mmu)
+                self.timer.step(self.cpu)
+                ticks += 1
+            except:
+                done = True
+                print("-- branch history --")
+                for addr in self.cpu.branch:
+                    print("${:04X}".format(addr))
+                print("-- -- --")
+                self.cpu.show_trace()
         end = time.time()
         print("-- REGS --")
         print(self.cpu.regs)
