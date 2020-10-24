@@ -1,5 +1,4 @@
 # `./gb.py`
-> Gameboy emulator in Python
 
 ## Goals
 - Full speed emulation of all Gameboy games in the standard Python interpreter (see [CPython vs PyPy](#cpython-vs-pypy))
