@@ -33,6 +33,6 @@ class LCD:
                 bs[k+3] = 0xff
                 k += 4
 
-        self.screen.get_buffer().write(bs)
+        self.screen.get_buffer().write(bytes(bs))
         pygame.display.flip()
         return pygame.QUIT in [e.type for e in pygame.event.get()]
