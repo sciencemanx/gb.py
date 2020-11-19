@@ -1,7 +1,7 @@
 from collections import deque
 from enum import IntFlag
 
-from . import instr, reg
+from . import instr, prof, reg
 from .mmu import MMU
 from .reg import Regs
 from .io import InterruptIO, IOHandler
@@ -90,8 +90,10 @@ class CPU:
         op = mmu.load(pc)
         inst = instr.exec_instr(op, self.regs, mmu)
         self.trace.append((pc, inst.mnem))
+        next_pc = self.regs.load(reg.PC)
+        prof.update(op, pc, next_pc, inst)
         if inst.step == 0:
-            self.branch.append(self.regs.load(reg.PC))
+            self.branch.append(next_pc)
         if pc in self.bps:
             self.single_step = True
             self.show_trace()

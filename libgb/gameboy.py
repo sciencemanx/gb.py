@@ -8,6 +8,7 @@ from . import mmu
 from . import rom
 from . import serial
 from . import timer
+from . import prof
 
 class Gameboy(NamedTuple):
     cpu: cpu.CPU
@@ -19,6 +20,7 @@ class Gameboy(NamedTuple):
         done = False
         start = time.time()
         ticks = 0
+        prof.init()
         while not done:
             try:
                 if ticks >= self.cpu.cycles:
@@ -34,6 +36,7 @@ class Gameboy(NamedTuple):
                 print("-- -- --")
                 self.cpu.show_trace()
         end = time.time()
+        prof.show()
         print("-- REGS --")
         print(self.cpu.regs)
         print("num execs: {}".format(self.cpu.execs))
