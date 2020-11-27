@@ -5,6 +5,7 @@ class MemoryRegion(ABC):
     def __init__(self, lower: int, upper: int, mem: bytearray = None):
         self.lower = lower
         self.upper = upper
+        self.size = upper - lower + 1
         self.mem = mem if mem else bytearray(upper - lower + 1)
     @abstractmethod
     def load(self, addr: int) -> int:
@@ -27,29 +28,11 @@ class Unimplemented(MemoryRegion):
     def store(self, addr: int, val: int):
         assert 0, "!!! write in {} to 0x{:04x} = 0x{:X}".format(self.name, addr, val)
 
-class FixedRom(MemoryRegion):
-    name = "fixed-rom-bank"
-    def __init__(self, *args, set_rom_bank=None, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.set_rom_bank=None
-    def load(self, addr: int) -> int:
-        return self.mem[self.translate(addr)]
-    def store(self, addr: int, val: int):
-        if self.set_rom_bank and 0x2000 <= addr < 0x4000:
-            self.set_rom_bank(val)
-        # print("! write to {} at 0x{:04x} = 0x{:X}".format(self.name, addr, val))
-
-class BankedRom(MemoryRegion):
-    name = "banked-rom-bank"
-    bank = 1
-    def set_bank(self, bank: int):
-        self.bank = bank
-    def get_bank(self) -> bytes:
-        size = self.upper - self.lower + 1
-        bank_start = size * (self.bank - 1)
-        return self.mem[bank_start:bank_start+size]
-    def load(self, addr: int) -> int:
-        return self.get_bank()[self.translate(addr)]
+class RomBank(MemoryRegion):
+    name = "rom-bank"
+    def load(self, addr: int, bank=0) -> int:
+        base = self.size * bank
+        return self.mem[base + self.translate(addr)]
     def store(self, addr: int, val: int):
         print("! write to {} at 0x{:04x} = 0x{:X}".format(self.name, addr, val))
 
@@ -63,7 +46,7 @@ class FixedWorkRam(MemoryRegion):
 class Unusable(MemoryRegion):
     name = "unusable"
     def load(self, addr: int) -> int:
-        assert 0, "read from 0x{:04x} in {}".format(addr, self.__class__.name)
+        return 0xff
     def store(self, addr: int, val: int):
         pass
 

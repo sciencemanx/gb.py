@@ -1,5 +1,6 @@
+from libgb.cart import Cart, MBC3
 from typing import NamedTuple
-from .memory import ExternalRam, FixedRom, BankedRom, VideoRam, FixedWorkRam, SpriteAttributeTable, Unusable
+from .memory import ExternalRam, VideoRam, FixedWorkRam, SpriteAttributeTable, Unusable
 from .io import IOPorts
 from .rom import Rom
 
@@ -18,34 +19,18 @@ INT_ENABLE_REG = 0xFFFF # to 0xFFFF
 MEM_MAX = 0xFFFF
 
 
-def get_rom_regions(rom: Rom):
-    print(rom.header.cart_type)
-    print(rom.header)
-    rom_1 = FixedRom(ROM_BANK_1, ROM_BANK_2 - 1, rom.data[ROM_BANK_1:ROM_BANK_2])
-    if "MBC" in rom.header.cart_type.name:
-        rom_2 = BankedRom(ROM_BANK_2, VIDEO_RAM - 1, rom.data[ROM_BANK_2:])
-        rom_1.set_rom_bank = rom_2.set_bank
-    else:
-        rom_2 = FixedRom(ROM_BANK_2, VIDEO_RAM - 1, rom.data[ROM_BANK_2:VIDEO_RAM])
-    return rom_1, rom_2
-
-
 def get_ram_regions(rom: Rom):
     video_ram = VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1)
-    ext_ram = FixedWorkRam(EXTERNAL_RAM, RAM_BANK_1 - 1)
     ram_1 = FixedWorkRam(RAM_BANK_1, RAM_BANK_2 - 1)
     ram_2 = FixedWorkRam(RAM_BANK_2, RAM_MIRROR - 1)
-    return video_ram, ext_ram, ram_1, ram_2
+    return video_ram, ram_1, ram_2
 
 
 class MMU(NamedTuple):
-    rom_1: FixedRom
-    rom_2: FixedRom
+    cart: Cart
     video_ram: VideoRam
-    ext_ram: FixedWorkRam
     ram_1: FixedWorkRam
     ram_2: FixedWorkRam
-    # echo:
     oam: SpriteAttributeTable
     unusable: Unusable
     io_ports: IOPorts
@@ -53,16 +38,24 @@ class MMU(NamedTuple):
 
     @staticmethod
     def from_rom(rom: Rom):
-        rom_1, rom_2 = get_rom_regions(rom)
-        video_ram, ext_ram, ram_1, ram_2 = get_ram_regions(rom)
+        cart = MBC3.from_rom(rom)
+        video_ram, ram_1, ram_2 = get_ram_regions(rom)
         oam = SpriteAttributeTable(SPRITE_TABLE, UNUSABLE - 1)
         unusable = Unusable(UNUSABLE, IO_PORTS - 1)
         io = IOPorts(IO_PORTS, HIGH_RAM - 1)
         hi_ram = FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1)
-        return MMU(rom_1, rom_2, video_ram, ext_ram, ram_1, ram_2, oam, unusable, io, hi_ram)
+        hi_ram.name = "hi-ram"
+        return MMU(cart, video_ram, ram_1, ram_2, oam, unusable, io, hi_ram)
 
     def mem_map(self):
         return list(self)
+
+    def where(self, addr: int) -> str:
+        for region in self.mem_map():
+            if addr in region:
+                return region.name
+        else:
+            return "unk"
 
     def load(self, addr: int) -> int:
         for region in self.mem_map():
