@@ -1,6 +1,6 @@
 from libgb.cart import Cart, MBC3
 from typing import NamedTuple
-from .memory import ExternalRam, VideoRam, FixedWorkRam, SpriteAttributeTable, Unusable
+from .memory import FixedWorkRam, Unusable
 from .io import IOPorts
 from .rom import Rom
 
@@ -19,19 +19,11 @@ INT_ENABLE_REG = 0xFFFF # to 0xFFFF
 MEM_MAX = 0xFFFF
 
 
-def get_ram_regions(rom: Rom):
-    video_ram = VideoRam(VIDEO_RAM, EXTERNAL_RAM - 1)
-    ram_1 = FixedWorkRam(RAM_BANK_1, RAM_BANK_2 - 1)
-    ram_2 = FixedWorkRam(RAM_BANK_2, RAM_MIRROR - 1)
-    return video_ram, ram_1, ram_2
-
-
 class MMU(NamedTuple):
     cart: Cart
-    video_ram: VideoRam
-    ram_1: FixedWorkRam
-    ram_2: FixedWorkRam
-    oam: SpriteAttributeTable
+    vram: FixedWorkRam
+    wram: FixedWorkRam
+    oam: FixedWorkRam
     unusable: Unusable
     io_ports: IOPorts
     hi_ram: FixedWorkRam
@@ -39,13 +31,13 @@ class MMU(NamedTuple):
     @staticmethod
     def from_rom(rom: Rom):
         cart = MBC3.from_rom(rom)
-        video_ram, ram_1, ram_2 = get_ram_regions(rom)
-        oam = SpriteAttributeTable(SPRITE_TABLE, UNUSABLE - 1)
+        vram = FixedWorkRam(VIDEO_RAM, EXTERNAL_RAM - 1, name="vram")
+        wram = FixedWorkRam(RAM_BANK_1, RAM_MIRROR - 1, name="wram")
+        hram = FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1, name="hram")
+        oam = FixedWorkRam(SPRITE_TABLE, UNUSABLE - 1, name="oam")
         unusable = Unusable(UNUSABLE, IO_PORTS - 1)
         io = IOPorts(IO_PORTS, HIGH_RAM - 1)
-        hi_ram = FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1)
-        hi_ram.name = "hi-ram"
-        return MMU(cart, video_ram, ram_1, ram_2, oam, unusable, io, hi_ram)
+        return MMU(cart, vram, wram, oam, unusable, io, hram)
 
     def mem_map(self):
         return list(self)

@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 
 class MemoryRegion(ABC):
     name: str
-    def __init__(self, lower: int, upper: int, mem: bytearray = None):
+    def __init__(self, lower: int, upper: int, mem: bytearray=None, name: str=None):
         self.lower = lower
         self.upper = upper
         self.size = upper - lower + 1
         self.mem = mem if mem else bytearray(upper - lower + 1)
+        if name is not None:
+            self.name = name
     @abstractmethod
     def load(self, addr: int) -> int:
         pass
@@ -37,7 +39,7 @@ class RomBank(MemoryRegion):
         print("! write to {} at 0x{:04x} = 0x{:X}".format(self.name, addr, val))
 
 class FixedWorkRam(MemoryRegion):
-    name = "fixed-work-ram-bank"
+    name = "fixed-work-ram"
     def load(self, addr: int) -> int:
         return self.mem[self.translate(addr)]
     def store(self, addr: int, val: int):
@@ -49,12 +51,6 @@ class Unusable(MemoryRegion):
         return 0xff
     def store(self, addr: int, val: int):
         pass
-
-class VideoRam(FixedWorkRam):
-    name = "video-ram"
-
-class SpriteAttributeTable(FixedWorkRam):
-    name = "sprite-attribute-table"
 
 class ExternalRam(Unimplemented):
     name = "external-ram"

@@ -170,31 +170,31 @@ class GPU:
             offset = 128
 
         if LCDC.BG_DISPLAY in lcdc:
-            bg_window_data = get_mem(mmu.video_ram, bg_window_data_range)
+            bg_window_data = get_mem(mmu.vram, bg_window_data_range)
             bg_window_tiles = load_tiles(bg_window_data)
 
             if LCDC.BG_TILE_SELECT in lcdc:
-                tile_map = get_mem(mmu.video_ram, BGMAP_2)
+                tile_map = get_mem(mmu.vram, BGMAP_2)
             else:
-                tile_map = get_mem(mmu.video_ram, BGMAP_1)
+                tile_map = get_mem(mmu.vram, BGMAP_1)
 
             self.render_bg(display, bg_window_tiles, tile_map, offset)
 
         if LCDC.OBJ_DISPLAY in lcdc:
-            obj_tile_data = get_mem(mmu.video_ram, (0x8000, 0x8FFF))
+            obj_tile_data = get_mem(mmu.vram, (0x8000, 0x8FFF))
             obj_tiles = load_tiles(obj_tile_data)
             obj_map = mmu.oam.mem
             sprites = [load_sprite(obj_map[i:i+4]) for i in range(0, len(obj_map), 4)]
             self.render_obj(display, obj_tiles, sprites, LCDC.OBJ_SIZE_SELECT in lcdc)
 
         if LCDC.WINDOW_DISPLAY in lcdc:
-            bg_window_data = get_mem(mmu.video_ram, bg_window_data_range)
+            bg_window_data = get_mem(mmu.vram, bg_window_data_range)
             bg_window_tiles = load_tiles(bg_window_data)
 
             if LCDC.WINDOW_TILE_SELECT in lcdc:
-                tile_map = get_mem(mmu.video_ram, BGMAP_2)
+                tile_map = get_mem(mmu.vram, BGMAP_2)
             else:
-                tile_map = get_mem(mmu.video_ram, BGMAP_1)
+                tile_map = get_mem(mmu.vram, BGMAP_1)
 
             self.render_window(display, bg_window_tiles, tile_map, offset)
 
