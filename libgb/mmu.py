@@ -21,12 +21,11 @@ MEM_MAX = 0xFFFF
 
 class MMU(NamedTuple):
     cart: Cart
-    vram: FixedWorkRam
     wram: FixedWorkRam
+    hram: FixedWorkRam
+    vram: FixedWorkRam
     oam: FixedWorkRam
-    unusable: Unusable
     io_ports: IOPorts
-    hi_ram: FixedWorkRam
 
     @staticmethod
     def from_rom(rom: Rom):
@@ -35,9 +34,8 @@ class MMU(NamedTuple):
         wram = FixedWorkRam(RAM_BANK_1, RAM_MIRROR - 1, name="wram")
         hram = FixedWorkRam(HIGH_RAM, INT_ENABLE_REG - 1, name="hram")
         oam = FixedWorkRam(SPRITE_TABLE, UNUSABLE - 1, name="oam")
-        unusable = Unusable(UNUSABLE, IO_PORTS - 1)
         io = IOPorts(IO_PORTS, HIGH_RAM - 1)
-        return MMU(cart, vram, wram, oam, unusable, io, hram)
+        return MMU(cart, wram, hram, vram, oam, io)
 
     def mem_map(self):
         return list(self)
