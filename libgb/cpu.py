@@ -89,17 +89,20 @@ class CPU:
         pc = self.regs.load(reg.PC)
         op = mmu.load(pc)
         inst = instr.exec_instr(op, self.regs, mmu)
-        self.trace.append((pc, inst.mnem))
-        next_pc = self.regs.load(reg.PC)
+        next_pc = self.regs.load(reg.PC) + inst.step
+        self.regs.store(reg.PC, next_pc)
+
+        # profile
         prof.update(op, pc, next_pc, inst)
+
+        # debug
+        self.trace.append((pc, inst.mnem))
         if inst.step == 0:
             self.branch.append(next_pc)
         if pc in self.bps:
             self.single_step = True
             self.show_trace()
             self.trace.clear()
-
-
         if show or self.single_step:
             print("{:04X}:{:02X} {}".format(pc, op, inst.mnem))
         if self.single_step:
@@ -107,11 +110,9 @@ class CPU:
             if input() == "c":
                 self.single_step = False
 
-        self.regs.store(reg.PC, self.regs.load(reg.PC) + inst.step)
-
         self.cycles += inst.cycles
-
         self.execs += 1
+
         done = self.max_execs and self.execs > self.max_execs
         done |= inst.cycles == -1
 
